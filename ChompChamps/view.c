@@ -1,4 +1,5 @@
 
+// codigo prueba de ncurses para entender como funciona
 #include <ctype.h>
 #include <ncurses.h>
 #include <stdlib.h>
