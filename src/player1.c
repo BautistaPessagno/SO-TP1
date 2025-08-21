@@ -49,9 +49,9 @@ int choose_conservative_move(game *game_state, int player_id) {
             continue;
         }
         
-        // Check if there's an obstacle in the board
+        // Check board: only bodies (negative) are forbidden; positive cells are allowed (score)
         int board_value = game_state->startBoard[new_y * width + new_x];
-        if (board_value != 0) { // 0 means free space
+        if (board_value < 0) {
             continue;
         }
         
@@ -123,30 +123,38 @@ int main(int argc, char *argv[]) {
         }
 
         int move_direction = choose_conservative_move(game_state, player_id);
-        if (move_direction == -1) {
-            move_direction = rand() % 8; // fallback aleatorio
-        }
 
         // Release read access
         if (release_read_access(sem_state) == -1) {
             break;
         }
 
-        // Send move to master via pipe
-        ssize_t bytes_written = write(pipe_fd, &move_direction, sizeof(move_direction));
-        if (bytes_written == -1) {
-            perror("write to pipe");
+        static int pipe_closed = 0;
+        if (move_direction == -1) {
+            // No hay movimientos válidos: cerrar pipe para enviar EOF y salir
+            if (!pipe_closed) { close(pipe_fd); pipe_closed = 1; }
             break;
+        } else {
+            // Send move to master via pipe
+            ssize_t bytes_written = write(pipe_fd, &move_direction, sizeof(move_direction));
+            if (bytes_written == -1) {
+                perror("write to pipe");
+                break;
+            }
         }
     }
 
-    printf("Player %d (Conservative) exiting.\n", player_id);
+    // No imprimir mensajes de salida para no interferir con la vista
 
     // Clean up
     close_semaphore_memory(sem_state);
     size_t game_size = sizeof(game) + (game_state->width * game_state->high * sizeof(int));
     close_shared_memory(game_state, game_size);
-    close(pipe_fd);
+    // Cerrar pipe si sigue abierto
+    extern int errno;
+    if (pipe_fd >= 0) {
+        close(pipe_fd);
+    }
 
     return EXIT_SUCCESS;
 }

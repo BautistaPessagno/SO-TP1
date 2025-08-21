@@ -51,9 +51,9 @@ int choose_aggressive_move(game *game_state, int player_id) {
             continue;
         }
         
-        // Check if there's an obstacle in the board
+        // Board check: forbid bodies (negative). Allow 0 or positive cells
         int board_value = game_state->startBoard[new_y * width + new_x];
-        if (board_value != 0) { // 0 means free space
+        if (board_value < 0) {
             continue;
         }
         
@@ -113,7 +113,7 @@ int choose_aggressive_move(game *game_state, int player_id) {
                     }
                 }
                 
-                if (!check_occupied && game_state->startBoard[check_y * width + check_x] == 0) {
+                if (!check_occupied && game_state->startBoard[check_y * width + check_x] >= 0) {
                     mobility++;
                 }
             }
@@ -162,30 +162,34 @@ int main(int argc, char *argv[]) {
         }
 
         int move_direction = choose_aggressive_move(game_state, player_id);
-        if (move_direction == -1) {
-            move_direction = rand() % 8; // fallback aleatorio
-        }
 
         // Release read access
         if (release_read_access(sem_state) == -1) {
             break;
         }
 
-        // Send move to master via pipe
-        ssize_t bytes_written = write(pipe_fd, &move_direction, sizeof(move_direction));
-        if (bytes_written == -1) {
-            perror("write to pipe");
+        if (move_direction == -1) {
+            // No valid moves: send EOF by closing pipe and exit
+            close(pipe_fd);
+            pipe_fd = -1;
             break;
+        } else {
+            // Send move to master via pipe
+            ssize_t bytes_written = write(pipe_fd, &move_direction, sizeof(move_direction));
+            if (bytes_written == -1) {
+                perror("write to pipe");
+                break;
+            }
         }
     }
 
-    printf("Player %d (Aggressive) exiting.\n", player_id);
+    // No imprimir mensajes de salida para no interferir con la vista
 
     // Clean up
     close_semaphore_memory(sem_state);
     size_t game_size = sizeof(game) + (game_state->width * game_state->high * sizeof(int));
     close_shared_memory(game_state, game_size);
-    close(pipe_fd);
+    if (pipe_fd >= 0) close(pipe_fd);
     
     return EXIT_SUCCESS;
 }

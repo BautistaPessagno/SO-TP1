@@ -47,7 +47,7 @@ static int choose_greedy_move(game *game_state, int player_id) {
         }
 
         int cell_value = game_state->startBoard[new_y * width + new_x];
-        // cannot move onto bodies (negative values)
+        // cannot move onto bodies (negative values). Allow 0 and positive values
         if (cell_value < 0) {
             continue;
         }
@@ -94,31 +94,34 @@ int main(int argc, char *argv[]) {
         }
 
         int move_direction = choose_greedy_move(game_state, player_id);
-        if (move_direction == -1) {
-            // fallback: random direction if no valid greedy move
-            move_direction = rand() % 8;
-        }
 
         // Release read access
         if (release_read_access(sem_state) == -1) {
             break;
         }
 
-        // Send move to master via pipe
-        ssize_t bytes_written = write(pipe_fd, &move_direction, sizeof(move_direction));
-        if (bytes_written == -1) {
-            perror("write to pipe");
+        if (move_direction == -1) {
+            // No valid moves: close pipe to send EOF and exit
+            close(pipe_fd);
+            pipe_fd = -1;
             break;
+        } else {
+            // Send move to master via pipe
+            ssize_t bytes_written = write(pipe_fd, &move_direction, sizeof(move_direction));
+            if (bytes_written == -1) {
+                perror("write to pipe");
+                break;
+            }
         }
     }
 
-    printf("Player %d (Greedy) exiting.\n", player_id);
+    // No imprimir mensajes de salida para no interferir con la vista
 
     // Clean up
     close_semaphore_memory(sem_state);
     size_t game_size = sizeof(game) + (game_state->width * game_state->high * sizeof(int));
     close_shared_memory(game_state, game_size);
-    close(pipe_fd);
+    if (pipe_fd >= 0) close(pipe_fd);
 
     return EXIT_SUCCESS;
 }

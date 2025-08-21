@@ -118,29 +118,24 @@ void init_colors() {
     init_pair(9, COLOR_GREEN, COLOR_BLACK);
 }
 
-static const char* dir_to_str(int d) {
-    switch (d) {
-        case 0: return "N "; case 1: return "NE"; case 2: return "E "; case 3: return "SE";
-        case 4: return "S "; case 5: return "SW"; case 6: return "W "; case 7: return "NW";
-        default: return "- ";
-    }
-}
+// lastMove eliminado del estado compartido
 
 void draw_stats(WINDOW *win, game *game_state) {
     box(win, 0, 0);
-    mvwprintw(win, 1, 2, "Jug | Nombre     | Puntaje | Válidos | Inválidos | Último | Bloq");
-    mvwprintw(win, 2, 2, "----+------------+---------+---------+-----------+--------+-----");
+    mvwprintw(win, 1, 2, "Jug | Nombre     | Puntaje | Válidos | Inválidos | Estado");
+    mvwprintw(win, 2, 2, "----+------------+---------+---------+-----------+--------");
 
     for (unsigned int i = 0; i < game_state->cantPlayers; i++) {
         wattron(win, COLOR_PAIR(i + 1));
-        mvwprintw(win, 3 + i, 2, "%3u | %-10s | %7u | %7u | %9u | %-6s | %s",
-                  i,
+        // Mostrar etiqueta de jugador como letra A, B, C...
+        char label = 'A' + (char)i;
+        mvwprintw(win, 3 + i, 2, "%3c | %-10s | %7u | %7u | %9u | %s",
+                  label,
                   game_state->players[i].playerName,
                   game_state->players[i].score,
                   game_state->players[i].validMove,
                   game_state->players[i].invalidMove,
-                  dir_to_str(game_state->players[i].lastMove),
-                  game_state->players[i].blocked ? "SI" : "NO");
+                  game_state->players[i].blocked ? "BLOQUEADO" : "ACTIVO");
         wattroff(win, COLOR_PAIR(i + 1));
     }
 }
@@ -157,14 +152,15 @@ void draw_board(WINDOW *win, game *game_state) {
                 char ch = (char)('0' + (val % 10));
                 mvwaddch(win, y + 1, drawx, ch);
             } else if (val < 0) {
-                // Cuerpo de una snake; el valor negativo indica jugador (-(id+1))
+                // Cuerpo de jugador; el valor negativo indica jugador (-(id+1))
                 int pid = (-val) - 1;
                 if (pid >= 0 && pid < (int)game_state->cantPlayers) {
                     wattron(win, COLOR_PAIR(pid + 1));
-                    mvwaddch(win, y + 1, drawx, 'o');
+                    char label = 'A' + (char)pid;
+                    mvwaddch(win, y + 1, drawx, label);
                     wattroff(win, COLOR_PAIR(pid + 1));
                 } else {
-                    mvwaddch(win, y + 1, drawx, 'o');
+                    mvwaddch(win, y + 1, drawx, '?');
                 }
             } else {
                 mvwaddch(win, y + 1, drawx, '.');
@@ -174,7 +170,8 @@ void draw_board(WINDOW *win, game *game_state) {
     for (unsigned int i = 0; i < game_state->cantPlayers; i++) {
         if (!game_state->players[i].blocked) {
             wattron(win, COLOR_PAIR(i + 1) | A_BOLD);
-            mvwaddch(win, game_state->players[i].qy + 1, 1 + game_state->players[i].qx * 2, '@'); // Cabeza del jugador
+            char label = 'A' + (char)i;
+            mvwaddch(win, game_state->players[i].qy + 1, 1 + game_state->players[i].qx * 2, label); // Cabeza del jugador como letra
             wattroff(win, COLOR_PAIR(i + 1) | A_BOLD);
         }
     }
