@@ -19,7 +19,7 @@ int main(int argc, char *argv[]) {
     (void)argc; // Marcar como no utilizado para evitar warnings
     (void)argv; // Marcar como no utilizado para evitar warnings
 
-    int game_shm_fd, sem_shm_fd;
+    int game_shm_fd;
     game *game_state;
     semaphore_struct *game_semaphores;
 
