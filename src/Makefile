@@ -2,9 +2,20 @@
 # This allows compiling directly with gcc without Docker
 
 # Compiler and flags
-CC := gcc
+CC := cc
 CFLAGS := -std=c11 -Wall -Wextra -O2 -I./include
-LDFLAGS := -pthread -lncurses
+LDFLAGS := -pthread
+
+# Detect ncurses flags (prefer pkg-config). Fallback to -lncurses
+NCURSES_CFLAGS := $(shell pkg-config --cflags ncurses 2>/dev/null || pkg-config --cflags ncursesw 2>/dev/null)
+NCURSES_LIBS := $(shell pkg-config --libs ncurses 2>/dev/null || pkg-config --libs ncursesw 2>/dev/null)
+
+CFLAGS += $(NCURSES_CFLAGS)
+ifneq ($(strip $(NCURSES_LIBS)),)
+LDFLAGS += $(NCURSES_LIBS)
+else
+LDFLAGS += -lncurses
+endif
 
 # Platform specific fixes for macOS
 UNAME_S := $(shell uname -s)
