@@ -96,6 +96,9 @@ int main(int argc, char *argv[]) {
 }
 
 void init_ncurses() {
+    if (getenv("TERM") == NULL) {
+        setenv("TERM", "xterm-256color", 1);
+    }
     initscr();
     cbreak();
     noecho();
