@@ -7,6 +7,7 @@ src/player1
 src/player2
 src/testPlayer
 src/view
+src/master
 src/testPlayer
 src/player_greedy
 .DS_Store
