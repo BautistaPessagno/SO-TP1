@@ -14,9 +14,9 @@
 typedef struct {
     sem_t A;        // Master -> View: hay cambios
     sem_t B;        // View -> Master: terminó de imprimir
-    sem_t C;        // Mutex auxiliar
+    sem_t C;        // Mutex para evitar inanición del máster al acceder al estado
     sem_t D;        // Mutex del estado del juego
-    sem_t E;        // Mutex auxiliar
+    sem_t E;        // Mutex para la siguiente variable
     unsigned int F; // cantidad de jugadores leyendo el estado del juego
     sem_t G[9];     // Semáforos por jugador
 } semaphore_struct;

@@ -94,54 +94,63 @@ int choose_conservative_move(game *game_state, int player_id) {
 
 int main(int argc, char *argv[]) {
     if (argc != 3) {
-        fprintf(stderr, "Usage: %s <player_id> <pipe_fd>\n", argv[0]);
+        fprintf(stderr, "Usage: %s <width> <height>\n", argv[0]);
         return EXIT_FAILURE;
     }
-    
-    int player_id = atoi(argv[1]);
-    int pipe_fd = atoi(argv[2]);
     
     // Open shared memory and semaphores
     game *game_state = open_shared_memory();
     semaphore_struct *sem_state = open_semaphore_memory();
 
     if (!game_state || !sem_state) {
-        fprintf(stderr, "Player %d: Failed to open shared memory or semaphores\n", player_id);
+        fprintf(stderr, "player1: Failed to open shared memory or semaphores\n");
         return EXIT_FAILURE;
     }
     
-    // Game loop
-    while (1) {
-        // Wait for turn
-        if (wait_for_turn(sem_state, player_id) == -1) {
-            break; // Salir si hay error en el semáforo
+    // Determine own player_id by PID (retry briefly to avoid race with master)
+    int player_id = -1;
+    pid_t self = getpid();
+    for (int attempt = 0; attempt < 200 && player_id < 0; attempt++) { // ~200ms
+        if (acquire_read_access(sem_state) == 0) {
+            for (unsigned int i = 0; i < game_state->cantPlayers; i++) {
+                if (game_state->players[i].pid == self) { player_id = (int)i; break; }
+            }
+            release_read_access(sem_state);
         }
-        
-        // Acquire read access to game state
+        if (player_id < 0) usleep(1000);
+    }
+    if (player_id < 0) {
+        close_semaphore_memory(sem_state);
+        size_t sz = sizeof(game) + (game_state->width * game_state->high * sizeof(int));
+        close_shared_memory(game_state, sz);
+        return EXIT_FAILURE;
+    }
+
+    // Game loop
+    int prev_count = -1;
+    while (!game_state->ended && !game_state->players[player_id].blocked) {
         if (acquire_read_access(sem_state) == -1) {
             break;
         }
+        int count = (int)(game_state->players[player_id].validMove + game_state->players[player_id].invalidMove);
+        int skip_write = (count == prev_count);
+        prev_count = count;
 
         int move_direction = choose_conservative_move(game_state, player_id);
 
-        // Release read access
         if (release_read_access(sem_state) == -1) {
             break;
         }
 
-        static int pipe_closed = 0;
-        if (move_direction == -1) {
-            // No hay movimientos válidos: cerrar pipe para enviar EOF y salir
-            if (!pipe_closed) { close(pipe_fd); pipe_closed = 1; }
-            break;
-        } else {
-            // Send move to master via pipe
-            ssize_t bytes_written = write(pipe_fd, &move_direction, sizeof(move_direction));
-            if (bytes_written == -1) {
-                perror("write to pipe");
+        if (!skip_write && move_direction != -1) {
+            unsigned char b = (unsigned char)move_direction;
+            ssize_t bytes_written = write(STDOUT_FILENO, &b, 1);
+            if (bytes_written != 1) {
+                perror("player1 write");
                 break;
             }
         }
+        usleep(2000);
     }
 
     // No imprimir mensajes de salida para no interferir con la vista
@@ -150,11 +159,7 @@ int main(int argc, char *argv[]) {
     close_semaphore_memory(sem_state);
     size_t game_size = sizeof(game) + (game_state->width * game_state->high * sizeof(int));
     close_shared_memory(game_state, game_size);
-    // Cerrar pipe si sigue abierto
-    extern int errno;
-    if (pipe_fd >= 0) {
-        close(pipe_fd);
-    }
+    // No cerrar stdout manualmente
 
     return EXIT_SUCCESS;
 }

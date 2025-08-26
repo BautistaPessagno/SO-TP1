@@ -26,7 +26,7 @@ endif
 
 # Source files
 IPC_SOURCES := ipc/shared_memory.c ipc/semaphore.c ipc/pipes.c
-MAIN_SOURCES := master.c view.c player1.c player2.c player_greedy.c
+MAIN_SOURCES := master.c view.c player1.c player2.c player_greedy.c testPlayer.c
 
 # Object files
 IPC_OBJECTS := $(IPC_SOURCES:.c=.o)
@@ -34,7 +34,7 @@ OBJ_DIR := obj
 IPC_OBJ := $(addprefix $(OBJ_DIR)/, $(IPC_OBJECTS))
 
 # Executables
-EXECUTABLES := master view player1 player2 player_greedy
+EXECUTABLES := master view player1 player2 player_greedy testPlayer
 
 # Default target
 all: $(EXECUTABLES)
@@ -70,6 +70,10 @@ player2: player2.c $(IPC_OBJ)
 player_greedy: player_greedy.c $(IPC_OBJ)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
+# Compile testPlayer
+testPlayer: testPlayer.c $(IPC_OBJ)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+
 # Individual targets
 build-master: master
 	@echo "Master compiled successfully!"
@@ -77,7 +81,7 @@ build-master: master
 build-view: view
 	@echo "View compiled successfully!"
 
-build-players: player1 player2 player_greedy
+build-players: player1 player2 player_greedy testPlayer
 	@echo "Players compiled successfully!"
 
 build-player1: player1

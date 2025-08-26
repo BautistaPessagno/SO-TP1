@@ -59,12 +59,30 @@ int wait_for_turn(semaphore_struct *sem_state, int player_id) {
 
 int acquire_read_access(semaphore_struct *sem_state) {
     if (!sem_state) return -1;
-    if (sem_wait(&sem_state->D) == -1) return -1;
+    if (sem_wait(&sem_state->E) == -1) return -1;
+    sem_state->F++;
+    if (sem_state->F == 1) {
+        if (sem_wait(&sem_state->D) == -1) {
+            // rollback F and E on failure
+            sem_state->F--;
+            sem_post(&sem_state->E);
+            return -1;
+        }
+    }
+    if (sem_post(&sem_state->E) == -1) return -1;
     return 0;
 }
 
 int release_read_access(semaphore_struct *sem_state) {
     if (!sem_state) return -1;
-    if (sem_post(&sem_state->D) == -1) return -1;
+    if (sem_wait(&sem_state->E) == -1) return -1;
+    if (sem_state->F > 0) sem_state->F--;
+    if (sem_state->F == 0) {
+        if (sem_post(&sem_state->D) == -1) {
+            sem_post(&sem_state->E);
+            return -1;
+        }
+    }
+    if (sem_post(&sem_state->E) == -1) return -1;
     return 0;
 }
