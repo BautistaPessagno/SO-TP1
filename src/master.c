@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <sys/time.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <time.h>
@@ -177,6 +178,12 @@ int create_player_pipes() {
 // Direcciones: 0=N,1=NE,2=E,3=SE,4=S,5=SW,6=W,7=NW
 static const int dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
 static const int dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+static unsigned long long current_millis() {
+  struct timeval tv;
+  gettimeofday(&tv, NULL);
+  return (unsigned long long)tv.tv_sec * 1000ULL + (unsigned long long)(tv.tv_usec / 1000);
+}
+
 
 static int is_inside(int x, int y) {
   return x >= 0 && x < (int)game_state->width && y >= 0 &&
@@ -370,6 +377,12 @@ int main(int argc, char *argv[]) {
     return EXIT_FAILURE;
   }
 
+  // Crear proceso de la vista
+  pid_t view_pid = create_view_process(width, height);
+  if (view_pid == -1) {
+    return EXIT_FAILURE;
+  }
+
   // Crear procesos de jugadores
   pid_t player_pids[9];
   for (int i = 0; i < num_players; i++) {
@@ -387,19 +400,21 @@ int main(int argc, char *argv[]) {
     close(player_pipes[i][1]);
   }
 
-  // Crear proceso de la vista
-  pid_t view_pid = create_view_process(width, height);
-  if (view_pid == -1) {
-    return EXIT_FAILURE;
-  }
-
   printf("Todos los procesos creados. Iniciando juego...\n");
 
   // Señalar a la vista que puede empezar
   sem_post(&game_semaphores->A);
 
   // Loop principal del juego
+  unsigned long long last_valid_move_ms = current_millis();
+  const unsigned long long INACTIVITY_TIMEOUT_MS = 5000; // 5 seconds without valid moves
   while (!game_state->ended) {
+    // Habilitar un turno para cada jugador activo
+    for (int i = 0; i < num_players; i++) {
+      if (!game_state->players[i].blocked) {
+        sem_post(&game_semaphores->G[i]);
+      }
+    }
     // Leer sin bloquear del pipe de cada jugador
 
     struct pollfd pfds[9];
@@ -421,9 +436,15 @@ int main(int argc, char *argv[]) {
           if (r == 1) {
             int direction = (int)move_byte;
             // Exclusión mutua de escritura del estado del juego (RW-lock)
+            sem_wait(&game_semaphores->C);
             sem_wait(&game_semaphores->D);
+            unsigned int prev_valid = game_state->players[i].validMove;
             apply_player_move(i, direction);
+            if (game_state->players[i].validMove != prev_valid) {
+              last_valid_move_ms = current_millis();
+            }
             sem_post(&game_semaphores->D);
+            sem_post(&game_semaphores->C);
           } else if (r == 0) {
             // EOF: jugador sin más movimientos -> bloquear
             game_state->players[i].blocked = 1;
@@ -445,6 +466,18 @@ int main(int argc, char *argv[]) {
     // Pequeño respiro para no saturar CPU y dar tiempo a jugadores
     usleep(50000); // 50ms
 
+    // Timeout por inactividad de movimientos válidos
+    if (!game_state->ended) {
+      unsigned long long now_ms = current_millis();
+      if (now_ms - last_valid_move_ms >= INACTIVITY_TIMEOUT_MS) {
+        game_state->ended = 1;
+        sem_post(&game_semaphores->A); // despertar vista
+        for (int i = 0; i < num_players; i++) {
+          sem_post(&game_semaphores->G[i]); // despertar jugadores
+        }
+      }
+    }
+
     // Verificar condición de fin: todos los jugadores bloqueados
     int all_blocked = 1;
     for (int i = 0; i < num_players; i++) {
@@ -457,6 +490,10 @@ int main(int argc, char *argv[]) {
       game_state->ended = 1;
       // Despertar la vista para que pueda leer ended y salir
       sem_post(&game_semaphores->A);
+      // Desbloquear a todos los jugadores por si están esperando turno
+      for (int i = 0; i < num_players; i++) {
+        sem_post(&game_semaphores->G[i]);
+      }
     }
   }
 

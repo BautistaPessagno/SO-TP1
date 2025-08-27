@@ -54,17 +54,21 @@ int main(int argc, char *argv[]) {
 
   // mientras el juego esta corriendo y este pueda moverse
   while (!gameState->ended && !gameState->players[playerId].blocked) {
-    // me fihjo que no se este usando
+    // esperar turno habilitado por el master para este jugador
+    if (sem_wait(&semState->G[playerId]) == -1) {
+      break;
+    }
+    // Entrada de lector con turnstile (C) para evitar inanición del writer (master)
     sem_wait(&semState->C);
     sem_post(&semState->C);
-
-    // acceder al estado del juego
+    // acceder al estado del juego (lectura)
     sem_wait(&semState->E);
     semState->F++;
     if (semState->F == 1) {
       sem_wait(&semState->D);
     }
     sem_post(&semState->E);
+
 
     int count = gameState->players[playerId].validMove +
                 gameState->players[playerId].invalidMove;

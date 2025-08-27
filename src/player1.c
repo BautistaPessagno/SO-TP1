@@ -129,6 +129,10 @@ int main(int argc, char *argv[]) {
     // Game loop
     int prev_count = -1;
     while (!game_state->ended && !game_state->players[player_id].blocked) {
+        // Wait until master grants this player's turn
+        if (wait_for_turn(sem_state, player_id) == -1) {
+            break;
+        }
         if (acquire_read_access(sem_state) == -1) {
             break;
         }
