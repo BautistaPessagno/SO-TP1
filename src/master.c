@@ -26,6 +26,284 @@ game *game_state;
 semaphore_struct *game_semaphores;
 int player_pipes[9][2]; // Pipes para comunicación con jugadores
 
+int create_game_shared_memory(int width, int height, int num_players);
+int create_semaphore_shared_memory();
+void initialize_board();
+void initialize_players();
+int create_player_pipes();
+static int is_inside(int x, int y);
+static int is_occupied(int x, int y, int self_id);
+static void apply_player_move(int pid, int direction);
+pid_t create_view_process(int width, int height);
+pid_t create_player_process(int player_id, const char *player_executables,
+                            int pipe_fd);
+// Direcciones: 0=N,1=NE,2=E,3=SE,4=S,5=SW,6=W,7=NW
+static const int dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+static const int dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+static unsigned long long current_millis() {
+  struct timeval tv;
+  gettimeofday(&tv, NULL);
+  return (unsigned long long)tv.tv_sec * 1000ULL +
+         (unsigned long long)(tv.tv_usec / 1000);
+}
+
+int main(int argc, char *argv[]) {
+  // Limpiar cualquier segmento de memoria compartida previo
+  shm_unlink(SHM_STATE);
+  shm_unlink(SHM_SEM);
+
+  // Parámetros por defecto
+  int width = 10, height = 10;
+  int num_players;
+  char *player_executables[9];
+
+  // Parsear argumentos de línea de comandos
+  if (argc < 3) {
+    fprintf(stderr,
+            "Uso: %s <width> <height> [player_executable_1] "
+            "[player_executable_2] ...\n",
+            argv[0]);
+    return EXIT_FAILURE;
+  }
+
+  width = atoi(argv[1]);
+  height = atoi(argv[2]);
+
+  if (argc >= 4) {
+    num_players = argc - 3;
+    if (num_players > 9) {
+      fprintf(stderr, "Error: Máximo 9 jugadores.\n");
+      return EXIT_FAILURE;
+    }
+    for (int i = 0; i < num_players; i++) {
+      if (strchr(argv[i + 3], '/') == NULL) {
+        // Si no se proporciona una ruta, asumir que está en el directorio
+        // actual
+        char *executable_with_path = malloc(strlen(argv[i + 3]) + 3);
+        if (executable_with_path == NULL) {
+          perror("malloc");
+          return EXIT_FAILURE;
+        }
+        sprintf(executable_with_path, "./%s", argv[i + 3]);
+        player_executables[i] = executable_with_path;
+      } else {
+        player_executables[i] = argv[i + 3];
+      }
+    }
+  } else {
+    // Configuración por defecto si no se especifican jugadores
+    printf("Usando configuración de jugadores por defecto: ./player1 y "
+           "./player2\n");
+    num_players = 2;
+    player_executables[0] = "./player1";
+    player_executables[1] = "./player2";
+  }
+
+  // Validar parámetros
+  if (width < 5 || width > 50 || height < 5 || height > 50) {
+    fprintf(stderr, "Parámetros inválidos.\n");
+    fprintf(stderr, "width/height: 5-50\n");
+    return EXIT_FAILURE;
+  }
+
+  printf("Iniciando ChompChamps - %dx%d tablero, %d jugadores\n", width, height,
+         num_players);
+
+  // Crear memoria compartida
+  if (create_game_shared_memory(width, height, num_players) == -1) {
+    return EXIT_FAILURE;
+  }
+
+  if (create_semaphore_shared_memory() == -1) {
+    return EXIT_FAILURE;
+  }
+
+  // Inicializar jugadores y tablero
+  initialize_players();
+  initialize_board();
+
+  // Crear pipes de comunicación
+  if (create_player_pipes() == -1) {
+    return EXIT_FAILURE;
+  }
+
+  // Crear proceso de la vista
+  pid_t view_pid = create_view_process(width, height);
+  if (view_pid == -1) {
+    return EXIT_FAILURE;
+  }
+
+  // Crear procesos de jugadores
+  pid_t player_pids[9];
+  for (int i = 0; i < num_players; i++) {
+    player_pids[i] =
+        create_player_process(i, player_executables[i], player_pipes[i][1]);
+
+    if (player_pids[i] == -1) {
+      return EXIT_FAILURE;
+    }
+    // Registrar PID del jugador en el estado compartido (protegido por D)
+    sem_wait(&game_semaphores->D);
+    game_state->players[i].pid = player_pids[i];
+    sem_post(&game_semaphores->D);
+    // Cerrar el extremo de escritura del pipe en el padre
+    close(player_pipes[i][1]);
+  }
+
+  printf("Todos los procesos creados. Iniciando juego...\n");
+
+  // Señalar a la vista que puede empezar
+  sem_post(&game_semaphores->A);
+
+  // Loop principal del juego
+  unsigned long long last_valid_move_ms = current_millis();
+  const unsigned long long INACTIVITY_TIMEOUT_MS =
+      5000; // 5 seconds without valid moves
+  while (!game_state->ended) {
+    // Habilitar un turno para cada jugador activo
+    for (int i = 0; i < num_players; i++) {
+      if (!game_state->players[i].blocked) {
+        sem_post(&game_semaphores->G[i]);
+      }
+    }
+    // Leer sin bloquear del pipe de cada jugador
+
+    struct pollfd pfds[9];
+    int nfds = 0;
+    for (int i = 0; i < num_players; i++) {
+      pfds[i].fd = player_pipes[i][0];
+      pfds[i].events = POLLIN;
+      pfds[i].revents = 0;
+    }
+    nfds = num_players;
+    int pret = poll(pfds, nfds, 50); // esperar hasta 50ms por datos
+    if (pret > 0) {
+      for (int i = 0; i < num_players; i++) {
+        if (game_state->players[i].blocked)
+          continue;
+        if (pfds[i].revents & POLLIN) {
+          unsigned char move_byte;
+          ssize_t r = read(player_pipes[i][0], &move_byte, 1);
+          if (r == 1) {
+            int direction = (int)move_byte;
+            // Exclusión mutua de escritura del estado del juego (RW-lock)
+            sem_wait(&game_semaphores->C);
+            sem_wait(&game_semaphores->D);
+            unsigned int prev_valid = game_state->players[i].validMove;
+            apply_player_move(i, direction);
+            if (game_state->players[i].validMove != prev_valid) {
+              last_valid_move_ms = current_millis();
+            }
+            sem_post(&game_semaphores->D);
+            sem_post(&game_semaphores->C);
+          } else if (r == 0) {
+            // EOF: jugador sin más movimientos -> bloquear
+            game_state->players[i].blocked = 1;
+          }
+        }
+        if (pfds[i].revents & (POLLHUP | POLLERR | POLLNVAL)) {
+          // Pipe cerrado o error: considerar bloqueado
+          game_state->players[i].blocked = 1;
+        }
+      }
+    }
+
+    // Señalar a la vista que actualice
+    sem_post(&game_semaphores->A);
+
+    // Esperar que la vista termine de actualizar
+    sem_wait(&game_semaphores->B);
+
+    // Pequeño respiro para no saturar CPU y dar tiempo a jugadores
+    usleep(50000); // 50ms
+
+    // Timeout por inactividad de movimientos válidos
+    if (!game_state->ended) {
+      unsigned long long now_ms = current_millis();
+      if (now_ms - last_valid_move_ms >= INACTIVITY_TIMEOUT_MS) {
+        game_state->ended = 1;
+        sem_post(&game_semaphores->A); // despertar vista
+        for (int i = 0; i < num_players; i++) {
+          sem_post(&game_semaphores->G[i]); // despertar jugadores
+        }
+      }
+    }
+
+    // Verificar condición de fin: todos los jugadores bloqueados
+    int all_blocked = 1;
+    for (int i = 0; i < num_players; i++) {
+      if (!game_state->players[i].blocked) {
+        all_blocked = 0;
+        break;
+      }
+    }
+    if (all_blocked) {
+      game_state->ended = 1;
+      // Despertar la vista para que pueda leer ended y salir
+      sem_post(&game_semaphores->A);
+      // Desbloquear a todos los jugadores por si están esperando turno
+      for (int i = 0; i < num_players; i++) {
+        sem_post(&game_semaphores->G[i]);
+      }
+    }
+  }
+
+  // Calcular ganador: mayor puntaje; en empate, menor validMove
+  int winner = -1;
+  unsigned int best_score = 0;
+  unsigned int best_valid = 0xFFFFFFFFu;
+  for (int i = 0; i < num_players; i++) {
+    unsigned int s = game_state->players[i].score;
+    unsigned int v = game_state->players[i].validMove;
+    if (winner == -1 || s > best_score || (s == best_score && v < best_valid)) {
+      winner = i;
+      best_score = s;
+      best_valid = v;
+    }
+  }
+
+  // Esperar que terminen todos los procesos
+  for (int i = 0; i < num_players; i++) {
+    waitpid(player_pids[i], NULL, 0);
+  }
+  waitpid(view_pid, NULL, 0);
+
+  printf("Resultados finales:\n");
+  for (int i = 0; i < num_players; i++) {
+    printf(
+        "Jugador %c | Puntaje: %u | Válidos: %u | Inválidos: %u | Estado: %s\n",
+        'A' + i, game_state->players[i].score, game_state->players[i].validMove,
+        game_state->players[i].invalidMove,
+        game_state->players[i].blocked ? "BLOQ" : "ACTIVO");
+  }
+  if (winner >= 0) {
+    printf("Ganador: Jugador %c (score=%u, validos=%u)\n", 'A' + winner,
+           best_score, best_valid);
+  } else {
+    printf("Sin ganador.\n");
+  }
+
+  // Limpiar recursos (después de imprimir resultados)
+  munmap(game_state, sizeof(game) + (width * height * sizeof(int)));
+  // Destruir semáforos antes de liberar la memoria compartida
+  sem_destroy(&game_semaphores->A);
+  sem_destroy(&game_semaphores->B);
+  sem_destroy(&game_semaphores->C);
+  sem_destroy(&game_semaphores->D);
+  sem_destroy(&game_semaphores->E);
+  for (int i = 0; i < 9; i++) {
+    sem_destroy(&game_semaphores->G[i]);
+  }
+  munmap(game_semaphores, sizeof(semaphore_struct));
+  close(game_shm_fd);
+  close(sem_shm_fd);
+  shm_unlink(SHM_STATE);
+  shm_unlink(SHM_SEM);
+
+  printf("Master terminado.\n");
+  return EXIT_SUCCESS;
+}
+
 // Función para crear memoria compartida del juego
 int create_game_shared_memory(int width, int height, int num_players) {
   size_t game_size = sizeof(game) + (width * height * sizeof(int));
@@ -175,16 +453,6 @@ int create_player_pipes() {
   return 0;
 }
 
-// Direcciones: 0=N,1=NE,2=E,3=SE,4=S,5=SW,6=W,7=NW
-static const int dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
-static const int dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
-static unsigned long long current_millis() {
-  struct timeval tv;
-  gettimeofday(&tv, NULL);
-  return (unsigned long long)tv.tv_sec * 1000ULL + (unsigned long long)(tv.tv_usec / 1000);
-}
-
-
 static int is_inside(int x, int y) {
   return x >= 0 && x < (int)game_state->width && y >= 0 &&
          y < (int)game_state->high;
@@ -295,260 +563,4 @@ pid_t create_player_process(int player_id, const char *player_executable,
   }
 
   return player_pid;
-}
-
-int main(int argc, char *argv[]) {
-  // Limpiar cualquier segmento de memoria compartida previo
-  shm_unlink(SHM_STATE);
-  shm_unlink(SHM_SEM);
-
-  // Parámetros por defecto
-  int width = 10, height = 10;
-  int num_players;
-  char *player_executables[9];
-
-  // Parsear argumentos de línea de comandos
-  if (argc < 3) {
-    fprintf(stderr,
-            "Uso: %s <width> <height> [player_executable_1] "
-            "[player_executable_2] ...\n",
-            argv[0]);
-    return EXIT_FAILURE;
-  }
-
-  width = atoi(argv[1]);
-  height = atoi(argv[2]);
-
-  if (argc >= 4) {
-    num_players = argc - 3;
-    if (num_players > 9) {
-      fprintf(stderr, "Error: Máximo 9 jugadores.\n");
-      return EXIT_FAILURE;
-    }
-    for (int i = 0; i < num_players; i++) {
-      if (strchr(argv[i + 3], '/') == NULL) {
-        // Si no se proporciona una ruta, asumir que está en el directorio
-        // actual
-        char *executable_with_path = malloc(strlen(argv[i + 3]) + 3);
-        if (executable_with_path == NULL) {
-          perror("malloc");
-          return EXIT_FAILURE;
-        }
-        sprintf(executable_with_path, "./%s", argv[i + 3]);
-        player_executables[i] = executable_with_path;
-      } else {
-        player_executables[i] = argv[i + 3];
-      }
-    }
-  } else {
-    // Configuración por defecto si no se especifican jugadores
-    printf("Usando configuración de jugadores por defecto: ./player1 y "
-           "./player2\n");
-    num_players = 2;
-    player_executables[0] = "./player1";
-    player_executables[1] = "./player2";
-  }
-
-  // Validar parámetros
-  if (width < 5 || width > 50 || height < 5 || height > 50) {
-    fprintf(stderr, "Parámetros inválidos.\n");
-    fprintf(stderr, "width/height: 5-50\n");
-    return EXIT_FAILURE;
-  }
-
-  printf("Iniciando ChompChamps - %dx%d tablero, %d jugadores\n", width, height,
-         num_players);
-
-  // Crear memoria compartida
-  if (create_game_shared_memory(width, height, num_players) == -1) {
-    return EXIT_FAILURE;
-  }
-
-  if (create_semaphore_shared_memory() == -1) {
-    return EXIT_FAILURE;
-  }
-
-  // Inicializar jugadores y tablero
-  initialize_players();
-  initialize_board();
-
-  // Crear pipes de comunicación
-  if (create_player_pipes() == -1) {
-    return EXIT_FAILURE;
-  }
-
-  // Crear proceso de la vista
-  pid_t view_pid = create_view_process(width, height);
-  if (view_pid == -1) {
-    return EXIT_FAILURE;
-  }
-
-  // Crear procesos de jugadores
-  pid_t player_pids[9];
-  for (int i = 0; i < num_players; i++) {
-    player_pids[i] =
-        create_player_process(i, player_executables[i], player_pipes[i][1]);
-
-    if (player_pids[i] == -1) {
-      return EXIT_FAILURE;
-    }
-    // Registrar PID del jugador en el estado compartido (protegido por D)
-    sem_wait(&game_semaphores->D);
-    game_state->players[i].pid = player_pids[i];
-    sem_post(&game_semaphores->D);
-    // Cerrar el extremo de escritura del pipe en el padre
-    close(player_pipes[i][1]);
-  }
-
-  printf("Todos los procesos creados. Iniciando juego...\n");
-
-  // Señalar a la vista que puede empezar
-  sem_post(&game_semaphores->A);
-
-  // Loop principal del juego
-  unsigned long long last_valid_move_ms = current_millis();
-  const unsigned long long INACTIVITY_TIMEOUT_MS = 5000; // 5 seconds without valid moves
-  while (!game_state->ended) {
-    // Habilitar un turno para cada jugador activo
-    for (int i = 0; i < num_players; i++) {
-      if (!game_state->players[i].blocked) {
-        sem_post(&game_semaphores->G[i]);
-      }
-    }
-    // Leer sin bloquear del pipe de cada jugador
-
-    struct pollfd pfds[9];
-    int nfds = 0;
-    for (int i = 0; i < num_players; i++) {
-      pfds[i].fd = player_pipes[i][0];
-      pfds[i].events = POLLIN;
-      pfds[i].revents = 0;
-    }
-    nfds = num_players;
-    int pret = poll(pfds, nfds, 50); // esperar hasta 50ms por datos
-    if (pret > 0) {
-      for (int i = 0; i < num_players; i++) {
-        if (game_state->players[i].blocked)
-          continue;
-        if (pfds[i].revents & POLLIN) {
-          unsigned char move_byte;
-          ssize_t r = read(player_pipes[i][0], &move_byte, 1);
-          if (r == 1) {
-            int direction = (int)move_byte;
-            // Exclusión mutua de escritura del estado del juego (RW-lock)
-            sem_wait(&game_semaphores->C);
-            sem_wait(&game_semaphores->D);
-            unsigned int prev_valid = game_state->players[i].validMove;
-            apply_player_move(i, direction);
-            if (game_state->players[i].validMove != prev_valid) {
-              last_valid_move_ms = current_millis();
-            }
-            sem_post(&game_semaphores->D);
-            sem_post(&game_semaphores->C);
-          } else if (r == 0) {
-            // EOF: jugador sin más movimientos -> bloquear
-            game_state->players[i].blocked = 1;
-          }
-        }
-        if (pfds[i].revents & (POLLHUP | POLLERR | POLLNVAL)) {
-          // Pipe cerrado o error: considerar bloqueado
-          game_state->players[i].blocked = 1;
-        }
-      }
-    }
-
-    // Señalar a la vista que actualice
-    sem_post(&game_semaphores->A);
-
-    // Esperar que la vista termine de actualizar
-    sem_wait(&game_semaphores->B);
-
-    // Pequeño respiro para no saturar CPU y dar tiempo a jugadores
-    usleep(50000); // 50ms
-
-    // Timeout por inactividad de movimientos válidos
-    if (!game_state->ended) {
-      unsigned long long now_ms = current_millis();
-      if (now_ms - last_valid_move_ms >= INACTIVITY_TIMEOUT_MS) {
-        game_state->ended = 1;
-        sem_post(&game_semaphores->A); // despertar vista
-        for (int i = 0; i < num_players; i++) {
-          sem_post(&game_semaphores->G[i]); // despertar jugadores
-        }
-      }
-    }
-
-    // Verificar condición de fin: todos los jugadores bloqueados
-    int all_blocked = 1;
-    for (int i = 0; i < num_players; i++) {
-      if (!game_state->players[i].blocked) {
-        all_blocked = 0;
-        break;
-      }
-    }
-    if (all_blocked) {
-      game_state->ended = 1;
-      // Despertar la vista para que pueda leer ended y salir
-      sem_post(&game_semaphores->A);
-      // Desbloquear a todos los jugadores por si están esperando turno
-      for (int i = 0; i < num_players; i++) {
-        sem_post(&game_semaphores->G[i]);
-      }
-    }
-  }
-
-  // Calcular ganador: mayor puntaje; en empate, menor validMove
-  int winner = -1;
-  unsigned int best_score = 0;
-  unsigned int best_valid = 0xFFFFFFFFu;
-  for (int i = 0; i < num_players; i++) {
-    unsigned int s = game_state->players[i].score;
-    unsigned int v = game_state->players[i].validMove;
-    if (winner == -1 || s > best_score || (s == best_score && v < best_valid)) {
-      winner = i;
-      best_score = s;
-      best_valid = v;
-    }
-  }
-
-  // Esperar que terminen todos los procesos
-  for (int i = 0; i < num_players; i++) {
-    waitpid(player_pids[i], NULL, 0);
-  }
-  waitpid(view_pid, NULL, 0);
-
-  printf("Resultados finales:\n");
-  for (int i = 0; i < num_players; i++) {
-    printf(
-        "Jugador %c | Puntaje: %u | Válidos: %u | Inválidos: %u | Estado: %s\n",
-        'A' + i, game_state->players[i].score, game_state->players[i].validMove,
-        game_state->players[i].invalidMove,
-        game_state->players[i].blocked ? "BLOQ" : "ACTIVO");
-  }
-  if (winner >= 0) {
-    printf("Ganador: Jugador %c (score=%u, validos=%u)\n", 'A' + winner,
-           best_score, best_valid);
-  } else {
-    printf("Sin ganador.\n");
-  }
-
-  // Limpiar recursos (después de imprimir resultados)
-  munmap(game_state, sizeof(game) + (width * height * sizeof(int)));
-  // Destruir semáforos antes de liberar la memoria compartida
-  sem_destroy(&game_semaphores->A);
-  sem_destroy(&game_semaphores->B);
-  sem_destroy(&game_semaphores->C);
-  sem_destroy(&game_semaphores->D);
-  sem_destroy(&game_semaphores->E);
-  for (int i = 0; i < 9; i++) {
-    sem_destroy(&game_semaphores->G[i]);
-  }
-  munmap(game_semaphores, sizeof(semaphore_struct));
-  close(game_shm_fd);
-  close(sem_shm_fd);
-  shm_unlink(SHM_STATE);
-  shm_unlink(SHM_SEM);
-
-  printf("Master terminado.\n");
-  return EXIT_SUCCESS;
 }

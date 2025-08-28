@@ -133,16 +133,19 @@ void init_colors() {
 
 void draw_stats(WINDOW *win, game *game_state) {
   box(win, 0, 0);
-  mvwprintw(win, 1, 2,
-            "Jug | Nombre     | Puntaje | Válidos | Inválidos | Estado");
+  mvwprintw(
+      win, 1, 2,
+      "Jug |  PID  | ID | Nombre     | Puntaje | Válidos | Inválidos | Estado");
   mvwprintw(win, 2, 2,
-            "----+------------+---------+---------+-----------+--------");
+            "----+-------+----+------------+---------+---------+-----------+---"
+            "-----");
 
   for (unsigned int i = 0; i < game_state->cantPlayers; i++) {
     wattron(win, COLOR_PAIR(i + 1));
     // Mostrar etiqueta de jugador como letra A, B, C...
     char label = 'A' + (char)i;
-    mvwprintw(win, 3 + i, 2, "%3c | %-10s | %7u | %7u | %9u | %s", label,
+    mvwprintw(win, 3 + i, 2, "%3c | %5d |  %3d  | %-10s | %7u | %7u | %9u | %s",
+              label, (int)game_state->players[i].pid, i,
               game_state->players[i].playerName, game_state->players[i].score,
               game_state->players[i].validMove,
               game_state->players[i].invalidMove,
