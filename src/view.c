@@ -14,6 +14,7 @@ void init_colors();
 void draw_stats(WINDOW *win, game *game_state);
 void draw_board(WINDOW *win, game *game_state);
 void cleanup_ncurses();
+char playersChar[] = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'};
 
 int main(int argc, char *argv[]) {
   (void)argc; // Marcar como no utilizado para evitar warnings
@@ -161,12 +162,12 @@ void draw_board(WINDOW *win, game *game_state) {
       if (val > 0) {
         char ch = (char)('0' + (val % 10));
         mvwaddch(win, y + 1, drawx, ch);
-      } else if (val < 0) {
+      } else if (val <= 0) {
         // Cuerpo de jugador; el valor negativo indica jugador (-(id+1))
-        int pid = (-val) - 1;
+        int pid = (-val);
         if (pid >= 0 && pid < (int)game_state->cantPlayers) {
           wattron(win, COLOR_PAIR(pid + 1));
-          char label = 'A' + (char)pid;
+          char label = playersChar[pid];
           mvwaddch(win, y + 1, drawx, label);
           wattroff(win, COLOR_PAIR(pid + 1));
         } else {
@@ -180,7 +181,7 @@ void draw_board(WINDOW *win, game *game_state) {
   for (unsigned int i = 0; i < game_state->cantPlayers; i++) {
     if (!game_state->players[i].blocked) {
       wattron(win, COLOR_PAIR(i + 1) | A_BOLD);
-      char label = 'A' + (char)i;
+      char label = '*';
       mvwaddch(win, game_state->players[i].qy + 1,
                1 + game_state->players[i].qx * 2,
                label); // Cabeza del jugador como letra
