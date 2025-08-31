@@ -61,7 +61,7 @@ int main(int argc, char *argv[]) {
 
   int stats_height =
       game_state->cantPlayers + 4; // Altura para la tabla de estadísticas
-  int board_height = game_state->high + 2;
+  int board_height = game_state->height + 2;
   int board_width = game_state->width * 2 + 2; // ancho acorde al espaciado
 
   WINDOW *stats_win = newwin(stats_height, board_width, 0, 0);
@@ -158,7 +158,7 @@ void draw_board(WINDOW *win, game *game_state) {
   box(win, 0, 0);
 
   // Dibujar con espaciado: cada celda ocupa 2 columnas
-  for (int y = 0; y < game_state->high; y++) {
+  for (int y = 0; y < game_state->height; y++) {
     for (int x = 0; x < game_state->width; x++) {
       int val = game_state->startBoard[y * game_state->width + x];
       int drawx = 1 + x * 2;

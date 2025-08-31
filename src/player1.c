@@ -18,7 +18,7 @@ int choose_conservative_move(game *game_state, int player_id) {
     int my_x = me->qx;
     int my_y = me->qy;
     int width = game_state->width;
-    int height = game_state->high;
+    int height = game_state->height;
     
     int best_direction = -1;
     int best_score = -1000;
@@ -121,7 +121,7 @@ int main(int argc, char *argv[]) {
     }
     if (player_id < 0) {
         close_semaphore_memory(sem_state);
-        size_t sz = sizeof(game) + (game_state->width * game_state->high * sizeof(int));
+        size_t sz = sizeof(game) + (game_state->width * game_state->height * sizeof(int));
         close_shared_memory(game_state, sz);
         return EXIT_FAILURE;
     }
@@ -161,7 +161,7 @@ int main(int argc, char *argv[]) {
 
     // Clean up
     close_semaphore_memory(sem_state);
-    size_t game_size = sizeof(game) + (game_state->width * game_state->high * sizeof(int));
+    size_t game_size = sizeof(game) + (game_state->width * game_state->height * sizeof(int));
     close_shared_memory(game_state, game_size);
     // No cerrar stdout manualmente
 
