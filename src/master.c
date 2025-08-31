@@ -1,5 +1,6 @@
 #include "include/game.h"
 #include "include/game_semaphore.h"
+#include <stdbool.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <poll.h>
@@ -331,7 +332,7 @@ int create_game_shared_memory(int width, int height, int num_players) {
 
   // Inicializar estado del juego
   game_state->width = width;
-  game_state->high = height;
+  game_state->height = height;
   game_state->cantPlayers = num_players;
   game_state->ended = 0;
 
@@ -395,7 +396,7 @@ void initialize_board() {
   srand(time(NULL));
 
   // Llenar tablero con valores aleatorios (1-9)
-  for (int i = 0; i < game_state->width * game_state->high; i++) {
+  for (int i = 0; i < game_state->width * game_state->height; i++) {
     game_state->startBoard[i] = (rand() % 9) + 1;
   }
 
@@ -407,11 +408,11 @@ void initialize_board() {
   }
 }
 
-// Función para inicializar jugadores
 void initialize_players() {
-  char player_names[][16] = {"Player1", "Player2", "Player3",
-                             "Player4", "Player5", "Player6",
-                             "Player7", "Player8", "Player9"};
+  char player_names[][16] = {
+    "Player1","Player2","Player3","Player4","Player5",
+    "Player6","Player7","Player8","Player9"
+  };
 
   for (int i = 0; i < (int)game_state->cantPlayers; i++) {
     strcpy(game_state->players[i].playerName, player_names[i]);
@@ -419,22 +420,22 @@ void initialize_players() {
     game_state->players[i].invalidMove = 0;
     game_state->players[i].validMove = 0;
     game_state->players[i].blocked = 0;
-    // lastMove eliminado del estado compartido
 
-    // Posición inicial aleatoria
+    // elegir una celda libre aleatoria que no se superponga con otros players
+    bool posicion_valida;
     do {
+      posicion_valida = true;
       game_state->players[i].qx = rand() % game_state->width;
-      game_state->players[i].qy = rand() % game_state->high;
-    } while (/* verificar que no haya otro jugador en esa posición */ 0);
+      game_state->players[i].qy = rand() % game_state->height;
 
-    // Verificar que no se solape con otros jugadores
-    for (int j = 0; j < i; j++) {
-      if (game_state->players[i].qx == game_state->players[j].qx &&
-          game_state->players[i].qy == game_state->players[j].qy) {
-        i--; // Reintentar con esta posición
-        break;
+      for (int j = 0; j < i; j++) {
+        if (game_state->players[i].qx == game_state->players[j].qx &&
+            game_state->players[i].qy == game_state->players[j].qy) {
+          posicion_valida = false;
+          break;
+        }
       }
-    }
+    } while (!posicion_valida);
   }
 }
 
@@ -455,7 +456,7 @@ int create_player_pipes() {
 
 static int is_inside(int x, int y) {
   return x >= 0 && x < (int)game_state->width && y >= 0 &&
-         y < (int)game_state->high;
+         y < (int)game_state->height;
 }
 
 static int is_occupied(int x, int y, int self_id) {
@@ -554,7 +555,7 @@ pid_t create_player_process(int player_id, const char *player_executable,
     // Pasar ancho y alto como argumentos, alineado con testPlayer
     char width_str[16], height_str[16];
     snprintf(width_str, sizeof(width_str), "%d", (int)game_state->width);
-    snprintf(height_str, sizeof(height_str), "%d", (int)game_state->high);
+    snprintf(height_str, sizeof(height_str), "%d", (int)game_state->height);
 
     char *args[] = {(char *)player_executable, width_str, height_str, NULL};
     execve(player_executable, args, environ);

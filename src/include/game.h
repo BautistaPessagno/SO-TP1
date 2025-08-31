@@ -26,7 +26,7 @@ typedef struct {
 
 typedef struct {
   unsigned short width;     // Ancho del tablero
-  unsigned short high;      // Alto del tablero
+  unsigned short height;      // Alto del tablero
   unsigned int cantPlayers; // Cantidad de jugadores
   player players[9];        // Lista de jugadores
   char ended;               // Indica si el juego se ha terminado
