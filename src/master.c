@@ -1,10 +1,10 @@
 #include "include/game.h"
 #include "include/game_semaphore.h"
-#include <stdbool.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <poll.h>
 #include <semaphore.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -404,15 +404,14 @@ void initialize_board() {
   for (int i = 0; i < (int)game_state->cantPlayers; i++) {
     int pos = game_state->players[i].qy * game_state->width +
               game_state->players[i].qx;
-    game_state->startBoard[pos] = 0;
+    game_state->startBoard[pos] = -i;
   }
 }
 
 void initialize_players() {
-  char player_names[][16] = {
-    "Player1","Player2","Player3","Player4","Player5",
-    "Player6","Player7","Player8","Player9"
-  };
+  char player_names[][16] = {"Player1", "Player2", "Player3",
+                             "Player4", "Player5", "Player6",
+                             "Player7", "Player8", "Player9"};
 
   for (int i = 0; i < (int)game_state->cantPlayers; i++) {
     strcpy(game_state->players[i].playerName, player_names[i]);
@@ -462,7 +461,7 @@ static int is_inside(int x, int y) {
 static int is_occupied(int x, int y, int self_id) {
   // Ocupado por cuerpo
   int cell = game_state->startBoard[y * game_state->width + x];
-  if (cell < 0)
+  if (cell <= 0)
     return 1;
   // Ocupado por cabeza de algún jugador
   for (int j = 0; j < (int)game_state->cantPlayers; j++) {
@@ -491,7 +490,7 @@ static void apply_player_move(int pid, int direction) {
     return;
   }
   // Dejar cuerpo en la celda actual
-  game_state->startBoard[y * game_state->width + x] = -(pid + 1);
+  game_state->startBoard[y * game_state->width + x] = -pid;
   // Puntuar por la celda destino si tiene valor positivo
   int dest_idx = ny * game_state->width + nx;
   int cell_val = game_state->startBoard[dest_idx];
@@ -504,7 +503,7 @@ static void apply_player_move(int pid, int direction) {
   // lastMove eliminado del estado compartido
   // Limpiar la celda destino para que no muestre puntaje (se verá la cabeza por
   // encima)
-  game_state->startBoard[dest_idx] = 0;
+  game_state->startBoard[dest_idx] = -pid;
   game_state->players[pid].validMove++;
 }
 

@@ -13,3 +13,5 @@ src/player_greedy
 .DS_Store
 src/player2
 src/player2
+src/player_random
+src/.bash_history

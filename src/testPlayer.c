@@ -58,7 +58,7 @@ int main(int argc, char *argv[]) {
     if (sem_wait(&semState->G[playerId]) == -1) {
       break;
     }
-    // Entrada de lector con turnstile (C) para evitar inanición del writer
+    // Entrada de lector con molinete (C) para evitar inanición del writer
     // (master)
     sem_wait(&semState->C);
     sem_post(&semState->C);

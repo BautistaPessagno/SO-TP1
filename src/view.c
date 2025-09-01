@@ -64,8 +64,19 @@ int main(int argc, char *argv[]) {
   int board_height = game_state->height + 2;
   int board_width = game_state->width * 2 + 2; // ancho acorde al espaciado
 
-  WINDOW *stats_win = newwin(stats_height, board_width, 0, 0);
-  WINDOW *board_win = newwin(board_height, board_width, stats_height, 0);
+  // Calcular ancho requerido para estadísticas para que no se trunque
+  const int W_JUG = 3, W_PID = 5, W_ID = 3, W_NOM = 12;
+  const int W_PUN = 7, W_VAL = 7, W_INV = 9, W_EST = 9;
+  int stats_content_width = (W_JUG + W_PID + W_ID + W_NOM + W_PUN + W_VAL +
+                             W_INV + W_EST) + 7 * 3; // 7 separadores " | "
+  int stats_width = stats_content_width + 4;          // margen + bordes
+
+  int win_width = board_width;
+  if (stats_width > win_width)
+    win_width = stats_width;
+
+  WINDOW *stats_win = newwin(stats_height, win_width, 0, 0);
+  WINDOW *board_win = newwin(board_height, win_width, stats_height, 0);
 
   // --- Bucle Principal de la Vista ---
   while (1) {
@@ -133,22 +144,44 @@ void init_colors() {
 
 void draw_stats(WINDOW *win, game *game_state) {
   box(win, 0, 0);
-  mvwprintw(
-      win, 1, 2,
-      "Jug |  PID  | ID | Nombre     | Puntaje | Válidos | Inválidos | Estado");
-  mvwprintw(win, 2, 2,
-            "----+-------+----+------------+---------+---------+-----------+---"
-            "-----");
+  // Definir anchos de columna
+  const int W_JUG = 3, W_PID = 5, W_ID = 3, W_NOM = 12;
+  const int W_PUN = 7, W_VAL = 7, W_INV = 9, W_EST = 9;
 
+  // Encabezado alineado
+  mvwprintw(win, 1, 2, "%-*s | %-*s | %-*s | %-*s | %-*s | %-*s | %-*s | %-*s",
+            W_JUG, "Jug", W_PID, "PID", W_ID, "ID", W_NOM, "Nombre",
+            W_PUN, "Puntaje", W_VAL, "V\xC3\xA1lidos", W_INV, "Inv\xC3\xA1lidos",
+            W_EST, "Estado");
+
+  // Separador
+  char sep[256];
+  int pos = 0;
+  const char *cols[] = {"", "", "", "", "", "", "", ""};
+  int widths[] = {W_JUG, W_PID, W_ID, W_NOM, W_PUN, W_VAL, W_INV, W_EST};
+  for (int c = 0; c < 8; c++) {
+    if (c > 0) {
+      sep[pos++] = ' ';
+      sep[pos++] = '|';
+      sep[pos++] = ' ';
+    }
+    for (int k = 0; k < widths[c]; k++)
+      sep[pos++] = '-';
+  }
+  sep[pos] = '\0';
+  mvwprintw(win, 2, 2, "%s", sep);
+
+  // Filas
   for (unsigned int i = 0; i < game_state->cantPlayers; i++) {
     wattron(win, COLOR_PAIR(i + 1));
-    // Mostrar etiqueta de jugador como letra A, B, C...
     char label = 'A' + (char)i;
-    mvwprintw(win, 3 + i, 2, "%3c | %5d |  %3d  | %-10s | %7u | %7u | %9u | %s",
-              label, (int)game_state->players[i].pid, i,
-              game_state->players[i].playerName, game_state->players[i].score,
-              game_state->players[i].validMove,
-              game_state->players[i].invalidMove,
+    mvwprintw(win, 3 + i, 2,
+              "%*c | %*d | %*d | %-*s | %*u | %*u | %*u | %-*s", W_JUG, label,
+              W_PID, (int)game_state->players[i].pid, W_ID, (int)i, W_NOM,
+              game_state->players[i].playerName, W_PUN,
+              game_state->players[i].score, W_VAL,
+              game_state->players[i].validMove, W_INV,
+              game_state->players[i].invalidMove, W_EST,
               game_state->players[i].blocked ? "BLOQUEADO" : "ACTIVO");
     wattroff(win, COLOR_PAIR(i + 1));
   }
