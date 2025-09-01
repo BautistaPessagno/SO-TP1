@@ -58,7 +58,8 @@ int main(int argc, char *argv[]) {
     if (sem_wait(&semState->G[playerId]) == -1) {
       break;
     }
-    // Entrada de lector con turnstile (C) para evitar inanición del writer (master)
+    // Entrada de lector con turnstile (C) para evitar inanición del writer
+    // (master)
     sem_wait(&semState->C);
     sem_post(&semState->C);
     // acceder al estado del juego (lectura)
@@ -68,7 +69,6 @@ int main(int argc, char *argv[]) {
       sem_wait(&semState->D);
     }
     sem_post(&semState->E);
-
 
     int count = gameState->players[playerId].validMove +
                 gameState->players[playerId].invalidMove;
@@ -95,7 +95,7 @@ int main(int argc, char *argv[]) {
     }
   }
   size_t game_size =
-      sizeof(game) + (gameState->width * gameState->high * sizeof(int));
+      sizeof(game) + (gameState->width * gameState->height * sizeof(int));
   close_shared_memory(gameState, game_size);
   close_semaphore_memory(semState);
 }
