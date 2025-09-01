@@ -183,7 +183,13 @@ int main(int argc, char *argv[]) {
             break;
         }
 
-        if (!skip_write && move_direction != -1) {
+        if (move_direction == -1) {
+            // No hay movimientos posibles: cerrar stdout para enviar EOF
+            close(STDOUT_FILENO);
+            break;
+        }
+
+        if (!skip_write) {
             unsigned char b = (unsigned char)move_direction;
             ssize_t bytes_written = write(STDOUT_FILENO, &b, 1);
             if (bytes_written != 1) {

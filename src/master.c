@@ -30,7 +30,7 @@ int player_pipes[9][2]; // Pipes para comunicación con jugadores
 int create_game_shared_memory(int width, int height, int num_players);
 int create_semaphore_shared_memory();
 void initialize_board();
-void initialize_players();
+void initialize_players(char *player_executables[], int num_players);
 int create_player_pipes();
 static int is_inside(int x, int y);
 static int is_occupied(int x, int y, int self_id);
@@ -119,8 +119,8 @@ int main(int argc, char *argv[]) {
     return EXIT_FAILURE;
   }
 
-  // Inicializar jugadores y tablero
-  initialize_players();
+  // Inicializar jugadores y tablero (nombres segun ejecutables)
+  initialize_players(player_executables, num_players);
   initialize_board();
 
   // Crear pipes de comunicación
@@ -200,6 +200,13 @@ int main(int argc, char *argv[]) {
           } else if (r == 0) {
             // EOF: jugador sin más movimientos -> bloquear
             game_state->players[i].blocked = 1;
+          } else if (r < 0) {
+            // Error de lectura. Si es no bloqueante sin datos, ignorar; de lo contrario, bloquear.
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+              // sin datos ahora
+            } else {
+              game_state->players[i].blocked = 1;
+            }
           }
         }
         if (pfds[i].revents & (POLLHUP | POLLERR | POLLNVAL)) {
@@ -216,7 +223,7 @@ int main(int argc, char *argv[]) {
     sem_wait(&game_semaphores->B);
 
     // Pequeño respiro para no saturar CPU y dar tiempo a jugadores
-    usleep(50000); // 50ms
+    usleep(500000); // 50ms
 
     // Timeout por inactividad de movimientos válidos
     if (!game_state->ended) {
@@ -408,13 +415,19 @@ void initialize_board() {
   }
 }
 
-void initialize_players() {
-  char player_names[][16] = {"Player1", "Player2", "Player3",
-                             "Player4", "Player5", "Player6",
-                             "Player7", "Player8", "Player9"};
+void initialize_players(char *player_executables[], int num_players) {
+  (void)num_players; // num_players coincide con game_state->cantPlayers
 
   for (int i = 0; i < (int)game_state->cantPlayers; i++) {
-    strcpy(game_state->players[i].playerName, player_names[i]);
+    // Derivar el nombre a partir del ejecutable asignado (basename)
+    const char *path = player_executables[i];
+    const char *base = strrchr(path, '/');
+    base = base ? base + 1 : path;
+    if (strncmp(base, "./", 2) == 0)
+      base += 2;
+    // Copiar truncando al tamaño disponible
+    snprintf(game_state->players[i].playerName,
+             sizeof(game_state->players[i].playerName), "%s", base);
     game_state->players[i].score = 0;
     game_state->players[i].invalidMove = 0;
     game_state->players[i].validMove = 0;

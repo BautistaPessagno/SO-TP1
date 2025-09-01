@@ -117,7 +117,13 @@ int main(int argc, char *argv[]) {
     if (release_read_access(sem_state) == -1)
       break;
 
-    if (!skip_write && move_direction != -1) {
+    if (move_direction == -1) {
+      // No valid moves: close stdout to send EOF, master marks blocked
+      close(STDOUT_FILENO);
+      break;
+    }
+
+    if (!skip_write) {
       unsigned char b = (unsigned char)move_direction;
       ssize_t bytes_written = write(STDOUT_FILENO, &b, 1);
       if (bytes_written != 1) {
@@ -136,4 +142,3 @@ int main(int argc, char *argv[]) {
   close_shared_memory(game_state, game_size);
   return EXIT_SUCCESS;
 }
-

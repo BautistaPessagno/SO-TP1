@@ -146,7 +146,13 @@ int main(int argc, char *argv[]) {
             break;
         }
 
-        if (!skip_write && move_direction != -1) {
+        if (move_direction == -1) {
+            // No valid moves left: close stdout to send EOF, master marks blocked
+            close(STDOUT_FILENO);
+            break;
+        }
+
+        if (!skip_write) {
             unsigned char b = (unsigned char)move_direction;
             ssize_t bytes_written = write(STDOUT_FILENO, &b, 1);
             if (bytes_written != 1) {
