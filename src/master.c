@@ -36,8 +36,7 @@ static int is_inside(int x, int y);
 static int is_occupied(int x, int y, int self_id);
 static void apply_player_move(int pid, int direction);
 pid_t create_view_process(int width, int height);
-pid_t create_player_process(int player_id, const char *player_executables,
-                            int pipe_fd);
+pid_t create_player_process(const char *player_executables, int pipe_fd);
 // Direcciones: 0=N,1=NE,2=E,3=SE,4=S,5=SW,6=W,7=NW
 static const int dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
 static const int dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
@@ -138,7 +137,7 @@ int main(int argc, char *argv[]) {
   pid_t player_pids[9];
   for (int i = 0; i < num_players; i++) {
     player_pids[i] =
-        create_player_process(i, player_executables[i], player_pipes[i][1]);
+        create_player_process(player_executables[i], player_pipes[i][1]);
 
     if (player_pids[i] == -1) {
       return EXIT_FAILURE;
@@ -201,7 +200,8 @@ int main(int argc, char *argv[]) {
             // EOF: jugador sin más movimientos -> bloquear
             game_state->players[i].blocked = 1;
           } else if (r < 0) {
-            // Error de lectura. Si es no bloqueante sin datos, ignorar; de lo contrario, bloquear.
+            // Error de lectura. Si es no bloqueante sin datos, ignorar; de lo
+            // contrario, bloquear.
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
               // sin datos ahora
             } else {
@@ -223,7 +223,10 @@ int main(int argc, char *argv[]) {
     sem_wait(&game_semaphores->B);
 
     // Pequeño respiro para no saturar CPU y dar tiempo a jugadores
-    usleep(500000); // 50ms
+    {
+      struct timespec ts = {0, 500000000};
+      nanosleep(&ts, NULL);
+    } // 500ms
 
     // Timeout por inactividad de movimientos válidos
     if (!game_state->ended) {
@@ -545,8 +548,7 @@ pid_t create_view_process(int width, int height) {
 }
 
 // Función para crear procesos de jugadores
-pid_t create_player_process(int player_id, const char *player_executable,
-                            int pipe_fd) {
+pid_t create_player_process(const char *player_executable, int pipe_fd) {
   pid_t player_pid = fork();
 
   if (player_pid == -1) {

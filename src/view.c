@@ -67,9 +67,10 @@ int main(int argc, char *argv[]) {
   // Calcular ancho requerido para estadísticas para que no se trunque
   const int W_JUG = 3, W_PID = 5, W_ID = 3, W_NOM = 12;
   const int W_PUN = 7, W_VAL = 7, W_INV = 9, W_EST = 9;
-  int stats_content_width = (W_JUG + W_PID + W_ID + W_NOM + W_PUN + W_VAL +
-                             W_INV + W_EST) + 7 * 3; // 7 separadores " | "
-  int stats_width = stats_content_width + 4;          // margen + bordes
+  int stats_content_width =
+      (W_JUG + W_PID + W_ID + W_NOM + W_PUN + W_VAL + W_INV + W_EST) +
+      7 * 3;                                 // 7 separadores " | "
+  int stats_width = stats_content_width + 4; // margen + bordes
 
   int win_width = board_width;
   if (stats_width > win_width)
@@ -150,14 +151,14 @@ void draw_stats(WINDOW *win, game *game_state) {
 
   // Encabezado alineado
   mvwprintw(win, 1, 2, "%-*s | %-*s | %-*s | %-*s | %-*s | %-*s | %-*s | %-*s",
-            W_JUG, "Jug", W_PID, "PID", W_ID, "ID", W_NOM, "Nombre",
-            W_PUN, "Puntaje", W_VAL, "V\xC3\xA1lidos", W_INV, "Inv\xC3\xA1lidos",
+            W_JUG, "Jug", W_PID, "PID", W_ID, "ID", W_NOM, "Nombre", W_PUN,
+            "Puntaje", W_VAL, "V\xC3\xA1lidos", W_INV, "Inv\xC3\xA1lidos",
             W_EST, "Estado");
 
   // Separador
   char sep[256];
   int pos = 0;
-  const char *cols[] = {"", "", "", "", "", "", "", ""};
+  /* const char *cols[] = {"", "", "", "", "", "", "", ""}; */
   int widths[] = {W_JUG, W_PID, W_ID, W_NOM, W_PUN, W_VAL, W_INV, W_EST};
   for (int c = 0; c < 8; c++) {
     if (c > 0) {
@@ -175,10 +176,9 @@ void draw_stats(WINDOW *win, game *game_state) {
   for (unsigned int i = 0; i < game_state->cantPlayers; i++) {
     wattron(win, COLOR_PAIR(i + 1));
     char label = 'A' + (char)i;
-    mvwprintw(win, 3 + i, 2,
-              "%*c | %*d | %*d | %-*s | %*u | %*u | %*u | %-*s", W_JUG, label,
-              W_PID, (int)game_state->players[i].pid, W_ID, (int)i, W_NOM,
-              game_state->players[i].playerName, W_PUN,
+    mvwprintw(win, 3 + i, 2, "%*c | %*d | %*d | %-*s | %*u | %*u | %*u | %-*s",
+              W_JUG, label, W_PID, (int)game_state->players[i].pid, W_ID,
+              (int)i, W_NOM, game_state->players[i].playerName, W_PUN,
               game_state->players[i].score, W_VAL,
               game_state->players[i].validMove, W_INV,
               game_state->players[i].invalidMove, W_EST,

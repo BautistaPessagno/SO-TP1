@@ -3,7 +3,7 @@
 
 # Compiler and flags
 CC := cc
-CFLAGS := -std=c11 -Wall -Wextra -O2 -I./include
+CFLAGS := -std=c99 -Wall -Wextra -O2 -I./include
 LDFLAGS := -pthread
 
 # Detect ncurses flags (prefer pkg-config). Fallback to -lncurses
@@ -22,6 +22,9 @@ UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)
     # On macOS, we might need to adjust some flags
     CFLAGS += -D_DARWIN_C_SOURCE
+else
+    # On POSIX systems, expose setenv and other POSIX APIs under strict C stds
+    CFLAGS += -D_POSIX_C_SOURCE=200112L
 endif
 
 # Source files

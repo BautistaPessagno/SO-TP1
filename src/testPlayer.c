@@ -10,8 +10,8 @@
 #include <unistd.h>
 
 // Directions: 0=N, 1=NE, 2=E, 3=SE, 4=S, 5=SW, 6=W, 7=NW
-static const int dx[] = {0, 1, 1, 1, 0, -1, -1, -1};
-static const int dy[] = {-1, -1, 0, 1, 1, 1, 0, -1};
+/* static const int dx[] = {0, 1, 1, 1, 0, -1, -1, -1}; */
+/* static const int dy[] = {-1, -1, 0, 1, 1, 1, 0, -1}; */
 
 // se va a mover siempre para la derecha
 int main(int argc, char *argv[]) {
@@ -20,8 +20,8 @@ int main(int argc, char *argv[]) {
     return EXIT_FAILURE;
   }
 
-  int width = atoi(argv[1]);
-  int hight = atoi(argv[2]);
+  /* int width = atoi(argv[1]); */
+  /* int hight = atoi(argv[2]); */
 
   game *gameState = open_shared_memory();
   semaphore_struct *semState = open_semaphore_memory();
@@ -40,7 +40,7 @@ int main(int argc, char *argv[]) {
   int prev_count = -1;
 
   // asocio el jugador a su id con el pid
-  for (int i = 0; i < gameState->cantPlayers; i++) {
+  for (int i = 0; i < (int)gameState->cantPlayers; i++) {
     if (gameState->players[i].pid == pid) {
       playerId = i;
       break;
