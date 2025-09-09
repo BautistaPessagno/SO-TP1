@@ -156,7 +156,7 @@ int main(int argc, char *argv[]) {
             }
             release_read_access(sem_state);
         }
-        if (player_id < 0) { struct timespec ts = {0, 1000000}; nanosleep(&ts, NULL); }
+        //if (player_id < 0) { struct timespec ts = {0, 1000000}; nanosleep(&ts, NULL); }
     }
     if (player_id < 0) {
         close_semaphore_memory(sem_state);
@@ -197,7 +197,7 @@ int main(int argc, char *argv[]) {
                 break;
             }
         }
-        { struct timespec ts = {0, 2000000}; nanosleep(&ts, NULL); }
+        //{ struct timespec ts = {0, 2000000}; nanosleep(&ts, NULL); }
     }
 
     // No imprimir mensajes de salida para no interferir con la vista
