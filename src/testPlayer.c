@@ -77,25 +77,7 @@ int main(int argc, char *argv[]) {
 
     // intento siempre ir a la izquierda; si no puedo, me bloqueo (EOF)
     int move = 6;
-    int my_x = gameState->players[playerId].qx;
-    int my_y = gameState->players[playerId].qy;
-    int nx = my_x - 1;
-    int ny = my_y;
-    int can_move = 0;
-    if (nx >= 0 && nx < gameState->width && ny >= 0 && ny < gameState->height) {
-      int occupied_head = 0;
-      for (unsigned int i = 0; i < gameState->cantPlayers; i++) {
-        if (i != (unsigned int)playerId && !gameState->players[i].blocked &&
-            gameState->players[i].qx == nx && gameState->players[i].qy == ny) {
-          occupied_head = 1;
-          break;
-        }
-      }
-      int cell = gameState->startBoard[ny * gameState->width + nx];
-      if (!occupied_head && cell > 0) {
-        can_move = 1;
-      }
-    }
+    
 
     sem_wait(&semState->E);
     semState->F--;
@@ -104,11 +86,6 @@ int main(int argc, char *argv[]) {
     }
     sem_post(&semState->E);
 
-    if (!can_move) {
-      // cerrar stdout para enviar EOF al master y salir del bucle
-      close(STDOUT_FILENO);
-      break;
-    }
 
     if (!skip_write && move != -1) {
       char buff[1] = {move};

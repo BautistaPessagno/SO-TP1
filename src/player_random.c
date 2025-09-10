@@ -100,27 +100,29 @@ int main(int argc, char *argv[]) {
   }
 
   int prev_count = -1;
-  while (!game_state->ended && !game_state->players[player_id].blocked) {
-    // Wait until master grants this player's turn
-    if (wait_for_turn(sem_state, player_id) == -1)
-      break;
+  while (!game_state->ended) {
+    // Leer estado: si estoy bloqueado, cerrar pipe y salir
     if (acquire_read_access(sem_state) == -1)
       break;
-
+    int am_blocked = game_state->players[player_id].blocked;
     int count = (int)(game_state->players[player_id].validMove +
                       game_state->players[player_id].invalidMove);
     int skip_write = (count == prev_count);
     prev_count = count;
-
     int move_direction = choose_random_move(game_state, player_id);
-
     if (release_read_access(sem_state) == -1)
+      break;
+    if (am_blocked) {
+      close(STDOUT_FILENO);
+      break;
+    }
+
+    // Esperar turno
+    if (wait_for_turn(sem_state, player_id) == -1)
       break;
 
     if (move_direction == -1) {
-      // No valid moves: close stdout to send EOF, master marks blocked
-      close(STDOUT_FILENO);
-      break;
+      move_direction = rand() % 8;
     }
 
     if (!skip_write) {
@@ -131,8 +133,6 @@ int main(int argc, char *argv[]) {
         break;
       }
     }
-
-    //{ struct timespec ts = {0, 2000000}; nanosleep(&ts, NULL); }
   }
 
   // Cleanup

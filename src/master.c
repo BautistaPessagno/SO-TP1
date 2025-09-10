@@ -35,6 +35,7 @@ int create_player_pipes();
 static int is_inside(int x, int y);
 static int is_occupied(int x, int y, int self_id);
 static void apply_player_move(int pid, int direction);
+static int has_valid_move(int pid);
 pid_t create_view_process(int width, int height);
 pid_t create_player_process(const char *player_executables, int pipe_fd);
 // Direcciones: 0=N,1=NE,2=E,3=SE,4=S,5=SW,6=W,7=NW
@@ -162,9 +163,14 @@ int main(int argc, char *argv[]) {
   while (!game_state->ended) {
     // Habilitar un turno para cada jugador activo
     for (int i = 0; i < num_players; i++) {
-      if (!game_state->players[i].blocked) {
-        sem_post(&game_semaphores->G[i]);
+      if (game_state->players[i].blocked)
+        continue;
+      if (!has_valid_move(i)) {
+        // Si no tiene movimientos válidos, bloquear al jugador
+        game_state->players[i].blocked = 1;
+        continue;
       }
+      sem_post(&game_semaphores->G[i]);
     }
     // Leer sin bloquear del pipe de cada jugador
 
@@ -486,6 +492,19 @@ static int is_occupied(int x, int y, int self_id) {
     if (game_state->players[j].qx == x && game_state->players[j].qy == y &&
         !game_state->players[j].blocked)
       return 1;
+  }
+  return 0;
+}
+
+static int has_valid_move(int pid) {
+  int x = game_state->players[pid].qx;
+  int y = game_state->players[pid].qy;
+  for (int d = 0; d < 8; d++) {
+    int nx = x + dx[d];
+    int ny = y + dy[d];
+    if (is_inside(nx, ny) && !is_occupied(nx, ny, pid)) {
+      return 1;
+    }
   }
   return 0;
 }
