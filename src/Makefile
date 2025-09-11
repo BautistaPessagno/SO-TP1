@@ -29,7 +29,7 @@ endif
 
 # Source files
 IPC_SOURCES := ipc/shared_memory.c ipc/semaphore.c ipc/pipes.c
-MAIN_SOURCES := master.c view.c player1.c player2.c player_greedy.c player_random.c testPlayer.c
+MAIN_SOURCES := master.c view.c player1.c player2.c player_greedy.c player_clever.c player_competitive.c player_random.c testPlayer.c
 
 # Object files
 IPC_OBJECTS := $(IPC_SOURCES:.c=.o)
@@ -37,7 +37,7 @@ OBJ_DIR := obj
 IPC_OBJ := $(addprefix $(OBJ_DIR)/, $(IPC_OBJECTS))
 
 # Executables
-EXECUTABLES := master view player1 player2 player_greedy player_random testPlayer
+EXECUTABLES := master view player1 player2 player_greedy player_clever player_competitive player_random testPlayer
 
 # Default target
 all: $(EXECUTABLES)
@@ -73,6 +73,14 @@ player2: player2.c $(IPC_OBJ)
 player_greedy: player_greedy.c $(IPC_OBJ)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
+# Compile player_clever
+player_clever: player_clever.c $(IPC_OBJ)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+
+# Compile player_competitive
+player_competitive: player_competitive.c $(IPC_OBJ)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) -lm
+
 # Compile player_random
 player_random: player_random.c $(IPC_OBJ)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
@@ -88,7 +96,7 @@ build-master: master
 build-view: view
 	@echo "View compiled successfully!"
 
-build-players: player1 player2 player_greedy player_random testPlayer
+build-players: player1 player2 player_greedy player_clever player_competitive player_random testPlayer
 	@echo "Players compiled successfully!"
 
 build-player1: player1
@@ -138,6 +146,8 @@ info:
 	@echo "  player1      - Build player1 executable"
 	@echo "  player2      - Build player2 executable"
 	@echo "  player_greedy - Build greedy player executable"
+	@echo "  player_clever - Build clever player executable"
+	@echo "  player_competitive - Build competitive player executable"
 	@echo "  player_random - Build random player executable"
 	@echo "  build-players - Build both players"
 	@echo "  ipc          - Build IPC libraries only"
