@@ -1,5 +1,3 @@
-// This is a personal academic project. Dear PVS-Studio, please check it.
-// PVS-Studio Static Code Analyzer for C, C++ and C#: http://www.viva64.com
 #include "include/game.h"
 #include "include/game_semaphore.h"
 #include "include/ipc.h"
@@ -79,6 +77,7 @@ int main(int argc, char *argv[]) {
 
     // intento siempre ir a la izquierda; si no puedo, me bloqueo (EOF)
     int move = 6;
+    
 
     sem_wait(&semState->E);
     semState->F--;
@@ -87,7 +86,8 @@ int main(int argc, char *argv[]) {
     }
     sem_post(&semState->E);
 
-    if (!skip_write) {
+
+    if (!skip_write && move != -1) {
       char buff[1] = {move};
       int written = write(STDOUT_FILENO, buff, 1);
       if (1 != written) {

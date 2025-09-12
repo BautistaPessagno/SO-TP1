@@ -167,16 +167,12 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-    int prev_count = -1;
     while (!game_state->ended) {
         // Leer estado: si estoy bloqueado, cerrar pipe y salir
         if (acquire_read_access(sem_state) == -1) {
             break;
         }
         int am_blocked = game_state->players[player_id].blocked;
-        int count = (int)(game_state->players[player_id].validMove + game_state->players[player_id].invalidMove);
-        int skip_write = (count == prev_count);
-        prev_count = count;
         int move_direction = choose_aggressive_move(game_state, player_id);
         if (release_read_access(sem_state) == -1) {
             break;
@@ -195,13 +191,11 @@ int main(int argc, char *argv[]) {
             move_direction = rand() % 8;
         }
 
-        if (!skip_write) {
-            unsigned char b = (unsigned char)move_direction;
-            ssize_t bytes_written = write(STDOUT_FILENO, &b, 1);
-            if (bytes_written != 1) {
-                perror("player2 write");
-                break;
-            }
+        unsigned char b = (unsigned char)move_direction;
+        ssize_t bytes_written = write(STDOUT_FILENO, &b, 1);
+        if (bytes_written != 1) {
+            perror("player2 write");
+            break;
         }
     }
 
