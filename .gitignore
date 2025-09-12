@@ -15,3 +15,8 @@ src/player2
 src/player2
 src/player_random
 src/.bash_history
+src/.config/PVS-Studio/PVS-Studio.lic
+src/PVS-Studio.log
+src/report.tasks
+src/strace_out
+src/strace_output.log

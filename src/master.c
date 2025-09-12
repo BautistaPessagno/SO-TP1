@@ -1,3 +1,5 @@
+// This is a personal academic project. Dear PVS-Studio, please check it.
+// PVS-Studio Static Code Analyzer for C, C++ and C#: http://www.viva64.com
 #include "include/game.h"
 #include "include/game_semaphore.h"
 #include <errno.h>
@@ -190,7 +192,7 @@ int main(int argc, char *argv[]) {
         if (pfds[i].revents & POLLIN) {
           unsigned char move_byte;
           ssize_t r = read(player_pipes[i][0], &move_byte, 1);
-          if (r == 1) {
+          if (r >= 1) {
             int direction = (int)move_byte;
             // Exclusión mutua de escritura del estado del juego (RW-lock)
             sem_wait(&game_semaphores->C);
@@ -205,7 +207,7 @@ int main(int argc, char *argv[]) {
           } else if (r == 0) {
             // EOF: jugador sin más movimientos -> bloquear
             game_state->players[i].blocked = 1;
-          } else if (r < 0) {
+          } else {
             // Error de lectura. Si es no bloqueante sin datos, ignorar; de lo
             // contrario, bloquear.
             if (errno == EAGAIN || errno == EWOULDBLOCK) {

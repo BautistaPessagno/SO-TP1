@@ -1,3 +1,5 @@
+// This is a personal academic project. Dear PVS-Studio, please check it.
+// PVS-Studio Static Code Analyzer for C, C++ and C#: http://www.viva64.com
 #include "include/game.h"
 #include "include/game_semaphore.h"
 #include "include/ipc.h"
@@ -198,10 +200,10 @@ void draw_board(WINDOW *win, game *game_state) {
       if (val > 0) {
         char ch = (char)('0' + (val % 10));
         mvwaddch(win, y + 1, drawx, ch);
-      } else if (val <= 0) {
+      } else {
         // Cuerpo de jugador; el valor negativo indica jugador (-(id+1))
         int pid = (-val);
-        if (pid >= 0 && pid < (int)game_state->cantPlayers) {
+        if (pid < (int)game_state->cantPlayers) {
           wattron(win, COLOR_PAIR(pid + 1));
           char label = playersChar[pid];
           mvwaddch(win, y + 1, drawx, label);
@@ -209,8 +211,6 @@ void draw_board(WINDOW *win, game *game_state) {
         } else {
           mvwaddch(win, y + 1, drawx, '?');
         }
-      } else {
-        mvwaddch(win, y + 1, drawx, '.');
       }
     }
   }
