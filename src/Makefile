@@ -29,12 +29,15 @@ endif
 
 # Source files
 IPC_SOURCES := ipc/shared_memory.c ipc/semaphore.c ipc/pipes.c
+MODULE_SOURCES := modules/config.c modules/memory.c modules/game_init.c modules/ipc_communication.c modules/game_logic.c modules/game_loop.c modules/game_results.c modules/utils.c
 MAIN_SOURCES := master.c view.c player1.c player2.c player_greedy.c player_random.c testPlayer.c
 
 # Object files
 IPC_OBJECTS := $(IPC_SOURCES:.c=.o)
+MODULE_OBJECTS := $(MODULE_SOURCES:.c=.o)
 OBJ_DIR := obj
 IPC_OBJ := $(addprefix $(OBJ_DIR)/, $(IPC_OBJECTS))
+MODULE_OBJ := $(addprefix $(OBJ_DIR)/, $(MODULE_OBJECTS))
 
 # Executables
 EXECUTABLES := master view player1 player2 player_greedy player_random testPlayer
@@ -48,13 +51,14 @@ all: $(EXECUTABLES)
 # Create object directory
 $(OBJ_DIR):
 	mkdir -p $(OBJ_DIR)/ipc
+	mkdir -p $(OBJ_DIR)/modules
 
 # Compile IPC library objects
 $(OBJ_DIR)/%.o: %.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Compile master
-master: master.c $(IPC_OBJ)
+master: master.c $(IPC_OBJ) $(MODULE_OBJ)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
 # Compile view (needs ncurses)
@@ -101,6 +105,10 @@ build-player2: player2
 ipc: $(IPC_OBJ)
 	@echo "IPC libraries compiled successfully!"
 
+# Compile modules only
+modules: $(MODULE_OBJ)
+	@echo "Modules compiled successfully!"
+
 # Clean build artifacts
 clean:
 	rm -f $(EXECUTABLES)
@@ -141,6 +149,7 @@ info:
 	@echo "  player_random - Build random player executable"
 	@echo "  build-players - Build both players"
 	@echo "  ipc          - Build IPC libraries only"
+	@echo "  modules      - Build modules only"
 	@echo "  test         - Test that all executables work"
 	@echo "  clean        - Remove build artifacts"
 	@echo "  info         - Show this information"
@@ -166,4 +175,4 @@ release: all
 # Help target
 help: info
 
-.PHONY: all clean test info deps debug release help build-master build-view build-players build-player1 build-player2 ipc
+.PHONY: all clean test info deps debug release help build-master build-view build-players build-player1 build-player2 ipc modules
