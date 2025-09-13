@@ -144,9 +144,9 @@ int main(int argc, char *argv[]) {
       return EXIT_FAILURE;
     }
     // Registrar PID del jugador en el estado compartido (protegido por D)
-    sem_wait(&game_semaphores->D);
+    sem_wait(&game_semaphores->game_state_mutex);
     game_state->players[i].pid = player_pids[i];
-    sem_post(&game_semaphores->D);
+    sem_post(&game_semaphores->game_state_mutex);
     // Cerrar el extremo de escritura del pipe en el padre
     close(player_pipes[i][1]);
   }
@@ -154,7 +154,7 @@ int main(int argc, char *argv[]) {
   printf("Todos los procesos creados. Iniciando juego...\n");
 
   // Señalar a la vista que puede empezar
-  sem_post(&game_semaphores->A);
+  sem_post(&game_semaphores->view_update_signal);
 
   // Loop principal del juego
   unsigned long long last_valid_move_ms = current_millis();
@@ -170,7 +170,7 @@ int main(int argc, char *argv[]) {
         game_state->players[i].blocked = 1;
         continue;
       }
-      sem_post(&game_semaphores->G[i]);
+      sem_post(&game_semaphores->player_turn_sem[i]);
     }
     // Leer sin bloquear del pipe de cada jugador
 
@@ -193,15 +193,15 @@ int main(int argc, char *argv[]) {
           if (r == 1) {
             int direction = (int)move_byte;
             // Exclusión mutua de escritura del estado del juego (RW-lock)
-            sem_wait(&game_semaphores->C);
-            sem_wait(&game_semaphores->D);
+            sem_wait(&game_semaphores->master_access_mutex);
+            sem_wait(&game_semaphores->game_state_mutex);
             unsigned int prev_valid = game_state->players[i].validMove;
             apply_player_move(i, direction);
             if (game_state->players[i].validMove != prev_valid) {
               last_valid_move_ms = current_millis();
             }
-            sem_post(&game_semaphores->D);
-            sem_post(&game_semaphores->C);
+            sem_post(&game_semaphores->game_state_mutex);
+            sem_post(&game_semaphores->master_access_mutex);
           } else if (r == 0) {
             // EOF: jugador sin más movimientos -> bloquear
             game_state->players[i].blocked = 1;
@@ -223,10 +223,10 @@ int main(int argc, char *argv[]) {
     }
 
     // Señalar a la vista que actualice
-    sem_post(&game_semaphores->A);
+    sem_post(&game_semaphores->view_update_signal);
 
     // Esperar que la vista termine de actualizar
-    sem_wait(&game_semaphores->B);
+    sem_wait(&game_semaphores->view_draw_complete);
 
     // Pequeño respiro para no saturar CPU y dar tiempo a jugadores
     {
@@ -239,9 +239,9 @@ int main(int argc, char *argv[]) {
       unsigned long long now_ms = current_millis();
       if (now_ms - last_valid_move_ms >= INACTIVITY_TIMEOUT_MS) {
         game_state->ended = 1;
-        sem_post(&game_semaphores->A); // despertar vista
+        sem_post(&game_semaphores->view_update_signal); // despertar vista
         for (int i = 0; i < num_players; i++) {
-          sem_post(&game_semaphores->G[i]); // despertar jugadores
+          sem_post(&game_semaphores->player_turn_sem[i]); // despertar jugadores
         }
       }
     }
@@ -257,10 +257,10 @@ int main(int argc, char *argv[]) {
     if (all_blocked) {
       game_state->ended = 1;
       // Despertar la vista para que pueda leer ended y salir
-      sem_post(&game_semaphores->A);
+      sem_post(&game_semaphores->view_update_signal);
       // Desbloquear a todos los jugadores por si están esperando turno
       for (int i = 0; i < num_players; i++) {
-        sem_post(&game_semaphores->G[i]);
+        sem_post(&game_semaphores->player_turn_sem[i]);
       }
     }
   }
@@ -303,13 +303,13 @@ int main(int argc, char *argv[]) {
   // Limpiar recursos (después de imprimir resultados)
   munmap(game_state, sizeof(game) + (width * height * sizeof(int)));
   // Destruir semáforos antes de liberar la memoria compartida
-  sem_destroy(&game_semaphores->A);
-  sem_destroy(&game_semaphores->B);
-  sem_destroy(&game_semaphores->C);
-  sem_destroy(&game_semaphores->D);
-  sem_destroy(&game_semaphores->E);
+  sem_destroy(&game_semaphores->view_update_signal);
+  sem_destroy(&game_semaphores->view_draw_complete);
+  sem_destroy(&game_semaphores->master_access_mutex);
+  sem_destroy(&game_semaphores->game_state_mutex);
+  sem_destroy(&game_semaphores->reader_count_mutex);
   for (int i = 0; i < 9; i++) {
-    sem_destroy(&game_semaphores->G[i]);
+    sem_destroy(&game_semaphores->player_turn_sem[i]);
   }
   munmap(game_semaphores, sizeof(semaphore_struct));
   close(game_shm_fd);
@@ -377,29 +377,29 @@ int create_semaphore_shared_memory() {
   }
 
   // Inicializar semáforos como compartidos entre procesos (pshared=1)
-  if (sem_init(&game_semaphores->A, 1, 0) == -1) {
+  if (sem_init(&game_semaphores->view_update_signal, 1, 0) == -1) {
     perror("sem_init A");
     return -1;
   }
-  if (sem_init(&game_semaphores->B, 1, 0) == -1) {
+  if (sem_init(&game_semaphores->view_draw_complete, 1, 0) == -1) {
     perror("sem_init B");
     return -1;
   }
-  if (sem_init(&game_semaphores->C, 1, 1) == -1) {
+  if (sem_init(&game_semaphores->master_access_mutex, 1, 1) == -1) {
     perror("sem_init C");
     return -1;
   }
-  if (sem_init(&game_semaphores->D, 1, 1) == -1) {
+  if (sem_init(&game_semaphores->game_state_mutex, 1, 1) == -1) {
     perror("sem_init D");
     return -1;
   }
-  if (sem_init(&game_semaphores->E, 1, 1) == -1) {
+  if (sem_init(&game_semaphores->reader_count_mutex, 1, 1) == -1) {
     perror("sem_init E");
     return -1;
   }
-  game_semaphores->F = 0;
+  game_semaphores->reader_count = 0;
   for (int i = 0; i < 9; i++) {
-    if (sem_init(&game_semaphores->G[i], 1, 0) == -1) {
+    if (sem_init(&game_semaphores->player_turn_sem[i], 1, 0) == -1) {
       perror("sem_init G");
       return -1;
     }

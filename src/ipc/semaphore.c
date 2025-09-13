@@ -50,7 +50,7 @@ void close_semaphore_memory(semaphore_struct *sem_state) {
 
 int wait_for_turn(semaphore_struct *sem_state, int player_id) {
     if (!sem_state || player_id < 0 || player_id >= 9) return -1;
-    if (sem_wait(&sem_state->G[player_id]) == -1) {
+    if (sem_wait(&sem_state->player_turn_sem[player_id]) == -1) {
         perror("wait_for_turn: sem_wait");
         return -1;
     }
@@ -59,30 +59,30 @@ int wait_for_turn(semaphore_struct *sem_state, int player_id) {
 
 int acquire_read_access(semaphore_struct *sem_state) {
     if (!sem_state) return -1;
-    if (sem_wait(&sem_state->E) == -1) return -1;
-    sem_state->F++;
-    if (sem_state->F == 1) {
-        if (sem_wait(&sem_state->D) == -1) {
+    if (sem_wait(&sem_state->reader_count_mutex) == -1) return -1;
+    sem_state->reader_count++;
+    if (sem_state->reader_count == 1) {
+        if (sem_wait(&sem_state->game_state_mutex) == -1) {
             // rollback F and E on failure
-            sem_state->F--;
-            sem_post(&sem_state->E);
+            sem_state->reader_count--;
+            sem_post(&sem_state->reader_count_mutex);
             return -1;
         }
     }
-    if (sem_post(&sem_state->E) == -1) return -1;
+    if (sem_post(&sem_state->reader_count_mutex) == -1) return -1;
     return 0;
 }
 
 int release_read_access(semaphore_struct *sem_state) {
     if (!sem_state) return -1;
-    if (sem_wait(&sem_state->E) == -1) return -1;
-    if (sem_state->F > 0) sem_state->F--;
-    if (sem_state->F == 0) {
-        if (sem_post(&sem_state->D) == -1) {
-            sem_post(&sem_state->E);
+    if (sem_wait(&sem_state->reader_count_mutex) == -1) return -1;
+    if (sem_state->reader_count > 0) sem_state->reader_count--;
+    if (sem_state->reader_count == 0) {
+        if (sem_post(&sem_state->game_state_mutex) == -1) {
+            sem_post(&sem_state->reader_count_mutex);
             return -1;
         }
     }
-    if (sem_post(&sem_state->E) == -1) return -1;
+    if (sem_post(&sem_state->reader_count_mutex) == -1) return -1;
     return 0;
 }
