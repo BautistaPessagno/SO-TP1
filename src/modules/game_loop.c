@@ -16,6 +16,8 @@ void run_game_loop(int num_players, pid_t view_pid) {
   unsigned long long last_valid_move_ms = current_millis();
   const unsigned long long INACTIVITY_TIMEOUT_MS =
       5000; // 5 seconds without valid moves
+  // Índice de inicio para política round-robin al atender solicitudes pendientes
+  int next_rr_index = 0;
   while (!game_state->ended) {
     // Habilitar un turno para cada jugador activo
     for (int i = 0; i < num_players; i++) {
@@ -40,7 +42,10 @@ void run_game_loop(int num_players, pid_t view_pid) {
     nfds = num_players;
     int pret = poll(pfds, nfds, 50); // esperar hasta 50ms por datos
     if (pret > 0) {
-      for (int i = 0; i < num_players; i++) {
+      int last_processed = -1;
+      // Atender en orden round-robin comenzando desde next_rr_index
+      for (int k = 0; k < num_players; k++) {
+        int i = (next_rr_index + k) % num_players;
         if (game_state->players[i].blocked)
           continue;
         if (pfds[i].revents & POLLIN) {
@@ -58,6 +63,7 @@ void run_game_loop(int num_players, pid_t view_pid) {
             }
             sem_post(&game_semaphores->D);
             sem_post(&game_semaphores->C);
+            last_processed = i;
           } else if (r == 0) {
             // EOF: jugador sin más movimientos -> bloquear
             game_state->players[i].blocked = 1;
@@ -75,6 +81,9 @@ void run_game_loop(int num_players, pid_t view_pid) {
           // Pipe cerrado o error: considerar bloqueado
           game_state->players[i].blocked = 1;
         }
+      }
+      if (last_processed != -1) {
+        next_rr_index = (last_processed + 1) % num_players;
       }
     }
 
