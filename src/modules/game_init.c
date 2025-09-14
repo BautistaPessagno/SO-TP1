@@ -1,10 +1,12 @@
+// This is a personal academic project. Dear PVS-Studio, please check it.
+// PVS-Studio Static Code Analyzer for C, C++ and C#: http://www.viva64.com
 #include "../include/game_init.h"
-#include "../include/memory.h"
 #include "../include/config.h"
+#include "../include/memory.h"
+#include <stdbool.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
-#include <stdbool.h>
 
 // Función para inicializar el tablero con valores aleatorios
 void initialize_board() {

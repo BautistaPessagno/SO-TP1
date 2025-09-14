@@ -1,7 +1,9 @@
+// This is a personal academic project. Dear PVS-Studio, please check it.
+// PVS-Studio Static Code Analyzer for C, C++ and C#: http://www.viva64.com
 #include "../include/game_results.h"
 #include "../include/memory.h"
-#include <sys/wait.h>
 #include <stdio.h>
+#include <sys/wait.h>
 
 int calculate_winner(int num_players) {
   // Calcular ganador: mayor puntaje; en empate, menor validMove
@@ -31,7 +33,8 @@ void print_final_results(int num_players, int winner) {
   }
   if (winner >= 0) {
     printf("Ganador: Jugador %c (score=%u, validos=%u)\n", 'A' + winner,
-           game_state->players[winner].score, game_state->players[winner].validMove);
+           game_state->players[winner].score,
+           game_state->players[winner].validMove);
   } else {
     printf("Sin ganador.\n");
   }

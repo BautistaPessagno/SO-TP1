@@ -1,12 +1,14 @@
+// This is a personal academic project. Dear PVS-Studio, please check it.
+// PVS-Studio Static Code Analyzer for C, C++ and C#: http://www.viva64.com
 #include "../include/game_loop.h"
-#include "../include/memory.h"
+#include "../include/config.h"
 #include "../include/game_logic.h"
 #include "../include/ipc_communication.h"
-#include "../include/config.h"
-#include <poll.h>
+#include "../include/memory.h"
 #include <errno.h>
-#include <time.h>
+#include <poll.h>
 #include <stdio.h>
+#include <time.h>
 #include <unistd.h>
 
 void run_game_loop(int num_players, pid_t view_pid) {
@@ -114,7 +116,8 @@ void run_game_loop(int num_players, pid_t view_pid) {
     }
     if (all_blocked) {
       game_state->ended = 1;
-      // Despertar la vista para que pueda leer ended y salir (solo si hay vista)
+      // Despertar la vista para que pueda leer ended y salir (solo si hay
+      // vista)
       if (view_pid != -1) {
         sem_post(&game_semaphores->A);
       }

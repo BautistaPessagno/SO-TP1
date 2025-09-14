@@ -1,12 +1,14 @@
+// This is a personal academic project. Dear PVS-Studio, please check it.
+// PVS-Studio Static Code Analyzer for C, C++ and C#: http://www.viva64.com
 #include "../include/ipc_communication.h"
-#include "../include/memory.h"
 #include "../include/config.h"
-#include <unistd.h>
-#include <sys/wait.h>
-#include <fcntl.h>
+#include "../include/memory.h"
 #include <errno.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
 extern char **environ;
 

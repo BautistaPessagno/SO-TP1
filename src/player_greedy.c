@@ -1,4 +1,5 @@
-
+// This is a personal academic project. Dear PVS-Studio, please check it.
+// PVS-Studio Static Code Analyzer for C, C++ and C#: http://www.viva64.com
 #include "include/game.h"
 #include "include/game_semaphore.h"
 #include "include/ipc.h"
@@ -96,8 +97,8 @@ int main(int argc, char *argv[]) {
       }
       release_read_access(sem_state);
     }
-    //if (player_id < 0)
-      //{ struct timespec ts = {0, 1000000}; nanosleep(&ts, NULL); }
+    // if (player_id < 0)
+    //{ struct timespec ts = {0, 1000000}; nanosleep(&ts, NULL); }
   }
   if (player_id < 0) {
     // Could not find myself in shared state
@@ -108,13 +109,25 @@ int main(int argc, char *argv[]) {
     return EXIT_FAILURE;
   }
 
+  int prev_count = -1;
   while (!game_state->ended) {
+    // Esperar turno concedido por el master
+    if (wait_for_turn(sem_state, player_id) == -1) {
+      break;
+    }
+
+
     // Leer estado: si estoy bloqueado, cerrar pipe y salir
     if (acquire_read_access(sem_state) == -1) {
       break;
     }
     int am_blocked = game_state->players[player_id].blocked;
     int move_direction = choose_greedy_move(game_state, player_id);
+    int count = game_state->players[player_id].validMove +
+                game_state->players[player_id].invalidMove;
+    int skip_write = count == prev_count;
+    prev_count = count;
+
     if (release_read_access(sem_state) == -1) {
       break;
     }
@@ -123,22 +136,18 @@ int main(int argc, char *argv[]) {
       break;
     }
 
-    // Esperar turno concedido por el master
-    if (wait_for_turn(sem_state, player_id) == -1) {
-      break;
-    }
-
     // Si el algoritmo no encontró una dirección, enviar cualquier dirección
     if (move_direction == -1) {
       move_direction = rand() % 8;
     }
 
+    if(!skip_write){
     unsigned char b = (unsigned char)move_direction;
     ssize_t bytes_written = write(STDOUT_FILENO, &b, 1);
     if (bytes_written != 1) {
       perror("player_greedy write");
       break;
-    }
+    }}
   }
 
   // No imprimir mensajes de salida para no interferir con la vista
