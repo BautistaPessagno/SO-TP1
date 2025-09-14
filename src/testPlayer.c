@@ -57,20 +57,20 @@ int main(int argc, char *argv[]) {
   // mientras el juego esta corriendo y este pueda moverse
   while (!gameState->ended && !gameState->players[playerId].blocked) {
     // esperar turno habilitado por el master para este jugador
-    if (sem_wait(&semState->G[playerId]) == -1) {
+    if (sem_wait(&semState->game_players_sem[playerId]) == -1) {
       break;
     }
     // Entrada de lector con molinete (C) para evitar inanición del writer
     // (master)
-    sem_wait(&semState->C);
-    sem_post(&semState->C);
+    sem_wait(&semState->game_master_mutex);
+    sem_post(&semState->game_master_mutex);
     // acceder al estado del juego (lectura)
-    sem_wait(&semState->E);
-    semState->F++;
-    if (semState->F == 1) {
-      sem_wait(&semState->D);
+    sem_wait(&semState->game_reader_mutex);
+    semState->game_players_count++;
+    if (semState->game_players_count == 1) {
+      sem_wait(&semState->game_state_mutex);
     }
-    sem_post(&semState->E);
+    sem_post(&semState->game_reader_mutex);
 
     int count = gameState->players[playerId].validMove +
                 gameState->players[playerId].invalidMove;
@@ -80,12 +80,12 @@ int main(int argc, char *argv[]) {
     // intento siempre ir a la izquierda; si no puedo, me bloqueo (EOF)
     int move = 6;
 
-    sem_wait(&semState->E);
-    semState->F--;
-    if (semState->F == 0) {
-      sem_post(&semState->D);
+    sem_wait(&semState->game_reader_mutex);
+    semState->game_players_count--;
+    if (semState->game_players_count == 0) {
+      sem_post(&semState->game_state_mutex);
     }
-    sem_post(&semState->E);
+    sem_post(&semState->game_reader_mutex);
 
     if (!skip_write) {
       char buff[1] = {move};

@@ -76,9 +76,9 @@ int main(int argc, char *argv[]) {
       return EXIT_FAILURE;
     }
     // Registrar PID del jugador en el estado compartido (protegido por D)
-    sem_wait(&game_semaphores->D);
+    sem_wait(&game_semaphores->game_state_mutex);
     game_state->players[i].pid = player_pids[i];
-    sem_post(&game_semaphores->D);
+    sem_post(&game_semaphores->game_state_mutex);
     // Cerrar el extremo de escritura del pipe en el padre
     close(player_pipes[i][1]);
   }
@@ -87,7 +87,7 @@ int main(int argc, char *argv[]) {
 
   // Señalar a la vista que puede empezar (solo si hay vista)
   if (view_pid != -1) {
-    sem_post(&game_semaphores->A);
+    sem_post(&game_semaphores->game_view_updated);
   }
 
   // Ejecutar el loop principal del juego

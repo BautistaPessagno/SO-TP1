@@ -83,12 +83,12 @@ int main(int argc, char *argv[]) {
 
   // --- Bucle Principal de la Vista ---
   while (1) {
-    if (sem_wait(&game_semaphores->A) == -1)
+    if (sem_wait(&game_semaphores->game_view_updated) == -1)
       break; // Esperar señal del master
 
     if (game_state->ended) {
       // Notificar y salir
-      sem_post(&game_semaphores->B);
+      sem_post(&game_semaphores->game_view_finished);
       break;
     }
 
@@ -101,7 +101,7 @@ int main(int argc, char *argv[]) {
     wrefresh(stats_win);
     wrefresh(board_win);
 
-    sem_post(&game_semaphores->B); // Avisar al master que se terminó de dibujar
+    sem_post(&game_semaphores->game_view_finished); // Avisar al master que se terminó de dibujar
   }
 
   // --- Limpieza ---

@@ -69,29 +69,29 @@ int create_semaphore_shared_memory() {
   }
 
   // Inicializar semáforos como compartidos entre procesos (pshared=1)
-  if (sem_init(&game_semaphores->A, 1, 0) == -1) {
+  if (sem_init(&game_semaphores->game_view_updated, 1, 0) == -1) {
     perror("sem_init A");
     return -1;
   }
-  if (sem_init(&game_semaphores->B, 1, 0) == -1) {
+  if (sem_init(&game_semaphores->game_view_finished, 1, 0) == -1) {
     perror("sem_init B");
     return -1;
   }
-  if (sem_init(&game_semaphores->C, 1, 1) == -1) {
+  if (sem_init(&game_semaphores->game_master_mutex, 1, 1) == -1) {
     perror("sem_init C");
     return -1;
   }
-  if (sem_init(&game_semaphores->D, 1, 1) == -1) {
+  if (sem_init(&game_semaphores->game_state_mutex, 1, 1) == -1) {
     perror("sem_init D");
     return -1;
   }
-  if (sem_init(&game_semaphores->E, 1, 1) == -1) {
+  if (sem_init(&game_semaphores->game_reader_mutex, 1, 1) == -1) {
     perror("sem_init E");
     return -1;
   }
-  game_semaphores->F = 0;
+  game_semaphores->game_players_count = 0;
   for (int i = 0; i < 9; i++) {
-    if (sem_init(&game_semaphores->G[i], 1, 0) == -1) {
+    if (sem_init(&game_semaphores->game_players_sem[i], 1, 0) == -1) {
       perror("sem_init G");
       return -1;
     }
@@ -102,13 +102,13 @@ int create_semaphore_shared_memory() {
 void cleanup_memory(int width, int height) {
   // Destruir semáforos antes de liberar el segmento que los contiene
   if (game_semaphores && game_semaphores != MAP_FAILED) {
-    sem_destroy(&game_semaphores->A);
-    sem_destroy(&game_semaphores->B);
-    sem_destroy(&game_semaphores->C);
-    sem_destroy(&game_semaphores->D);
-    sem_destroy(&game_semaphores->E);
+    sem_destroy(&game_semaphores->game_view_updated);
+    sem_destroy(&game_semaphores->game_view_finished);
+    sem_destroy(&game_semaphores->game_master_mutex);
+    sem_destroy(&game_semaphores->game_state_mutex);
+    sem_destroy(&game_semaphores->game_reader_mutex);
     for (int i = 0; i < 9; i++) {
-      sem_destroy(&game_semaphores->G[i]);
+      sem_destroy(&game_semaphores->game_players_sem[i]);
     }
     munmap(game_semaphores, sizeof(semaphore_struct));
   }

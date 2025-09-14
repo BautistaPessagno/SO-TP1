@@ -55,7 +55,7 @@ void close_semaphore_memory(semaphore_struct *sem_state) {
 int wait_for_turn(semaphore_struct *sem_state, int player_id) {
   if (!sem_state || player_id < 0 || player_id >= 9)
     return -1;
-  if (sem_wait(&sem_state->G[player_id]) == -1) {
+  if (sem_wait(&sem_state->game_players_sem[player_id]) == -1) {
     perror("wait_for_turn: sem_wait");
     return -1;
   }
@@ -66,20 +66,20 @@ int acquire_read_access(semaphore_struct *sem_state) {
   if (!sem_state)
     return -1;
   // cumple un rol estilo molinete
-  sem_wait(&sem_state->C);
-  sem_post(&sem_state->C);
-  if (sem_wait(&sem_state->E) == -1)
+  sem_wait(&sem_state->game_master_mutex);
+  sem_post(&sem_state->game_master_mutex);
+  if (sem_wait(&sem_state->game_reader_mutex) == -1)
     return -1;
-  sem_state->F++;
-  if (sem_state->F == 1) {
-    if (sem_wait(&sem_state->D) == -1) {
+  sem_state->game_players_count++;
+  if (sem_state->game_players_count == 1) {
+    if (sem_wait(&sem_state->game_state_mutex) == -1) {
       // rollback F and E on failure
-      sem_state->F--;
-      sem_post(&sem_state->E);
+      sem_state->game_players_count--;
+      sem_post(&sem_state->game_reader_mutex);
       return -1;
     }
   }
-  if (sem_post(&sem_state->E) == -1)
+  if (sem_post(&sem_state->game_reader_mutex) == -1)
     return -1;
   return 0;
 }
@@ -87,17 +87,17 @@ int acquire_read_access(semaphore_struct *sem_state) {
 int release_read_access(semaphore_struct *sem_state) {
   if (!sem_state)
     return -1;
-  if (sem_wait(&sem_state->E) == -1)
+  if (sem_wait(&sem_state->game_reader_mutex) == -1)
     return -1;
-  if (sem_state->F > 0)
-    sem_state->F--;
-  if (sem_state->F == 0) {
-    if (sem_post(&sem_state->D) == -1) {
-      sem_post(&sem_state->E);
+  if (sem_state->game_players_count > 0)
+    sem_state->game_players_count--;
+  if (sem_state->game_players_count == 0) {
+    if (sem_post(&sem_state->game_state_mutex) == -1) {
+      sem_post(&sem_state->game_reader_mutex);
       return -1;
     }
   }
-  if (sem_post(&sem_state->E) == -1)
+  if (sem_post(&sem_state->game_reader_mutex) == -1)
     return -1;
   return 0;
 }

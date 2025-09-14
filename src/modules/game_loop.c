@@ -28,7 +28,7 @@ void run_game_loop(int num_players, pid_t view_pid) {
         game_state->players[i].blocked = 1;
         continue;
       }
-      sem_post(&game_semaphores->G[i]);
+      sem_post(&game_semaphores->game_players_sem[i]);
     }
     // Leer sin bloquear del pipe de cada jugador
 
@@ -54,15 +54,15 @@ void run_game_loop(int num_players, pid_t view_pid) {
           if (r >= 1) {
             int direction = (int)move_byte;
             // Exclusión mutua de escritura del estado del juego (RW-lock)
-            sem_wait(&game_semaphores->C);
-            sem_wait(&game_semaphores->D);
+            sem_wait(&game_semaphores->game_master_mutex);
+            sem_wait(&game_semaphores->game_state_mutex);
             unsigned int prev_valid = game_state->players[i].validMove;
             apply_player_move(i, direction);
             if (game_state->players[i].validMove != prev_valid) {
               last_valid_move_ms = current_millis();
             }
-            sem_post(&game_semaphores->D);
-            sem_post(&game_semaphores->C);
+            sem_post(&game_semaphores->game_state_mutex);
+            sem_post(&game_semaphores->game_master_mutex);
             last_processed = i;
           } else if (r == 0) {
             // EOF: jugador sin más movimientos -> bloquear
@@ -89,10 +89,10 @@ void run_game_loop(int num_players, pid_t view_pid) {
 
     // Señalar a la vista que actualice (solo si hay vista)
     if (view_pid != -1) {
-      sem_post(&game_semaphores->A);
+      sem_post(&game_semaphores->game_view_updated);
 
       // Esperar que la vista termine de actualizar
-      sem_wait(&game_semaphores->B);
+      sem_wait(&game_semaphores->game_view_finished);
     }
 
     // Pequeño respiro para no saturar CPU y dar tiempo a jugadores
@@ -107,10 +107,10 @@ void run_game_loop(int num_players, pid_t view_pid) {
       if (now_ms - last_valid_move_ms >= INACTIVITY_TIMEOUT_MS) {
         game_state->ended = 1;
         if (view_pid != -1) {
-          sem_post(&game_semaphores->A); // despertar vista
+          sem_post(&game_semaphores->game_view_updated); // despertar vista
         }
         for (int i = 0; i < num_players; i++) {
-          sem_post(&game_semaphores->G[i]); // despertar jugadores
+          sem_post(&game_semaphores->game_players_sem[i]); // despertar jugadores
         }
       }
     }
@@ -128,11 +128,11 @@ void run_game_loop(int num_players, pid_t view_pid) {
       // Despertar la vista para que pueda leer ended y salir (solo si hay
       // vista)
       if (view_pid != -1) {
-        sem_post(&game_semaphores->A);
+        sem_post(&game_semaphores->game_view_updated);
       }
       // Desbloquear a todos los jugadores por si están esperando turno
       for (int i = 0; i < num_players; i++) {
-        sem_post(&game_semaphores->G[i]);
+        sem_post(&game_semaphores->game_players_sem[i]);
       }
     }
   }
