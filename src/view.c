@@ -105,9 +105,10 @@ int main(int argc, char *argv[]) {
   }
 
   // --- Limpieza ---
-  cleanup_ncurses();
+  // Destruir ventanas antes de finalizar ncurses para permitir que libncurses libere recursos asociados
   delwin(stats_win);
   delwin(board_win);
+  cleanup_ncurses();
   munmap(game_state, game_size);
   close_semaphore_memory(game_semaphores);
 

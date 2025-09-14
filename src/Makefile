@@ -27,6 +27,15 @@ else
     CFLAGS += -D_POSIX_C_SOURCE=200112L
 endif
 
+# Valgrind configuration
+VALGRIND := valgrind
+VG_COMMON_OPTS := --leak-check=full --show-leak-kinds=all --track-origins=yes --errors-for-leak-kinds=all --num-callers=25 --error-exitcode=42
+VG_LOG_DIR := logs/valgrind
+VG_LOG_ALL := $(VG_LOG_DIR)/full_run.log
+VG_LOG_NO_CHILDREN := $(VG_LOG_DIR)/no_children.log
+VG_LOG_VIEW_ONLY := $(VG_LOG_DIR)/view_only.log
+VG_LOG_PLAYERS_ONLY := $(VG_LOG_DIR)/players_only.log
+
 # Source files
 IPC_SOURCES := ipc/shared_memory.c ipc/semaphore.c ipc/pipes.c
 MODULE_SOURCES := modules/config.c modules/memory.c modules/game_init.c modules/ipc_communication.c modules/game_logic.c modules/game_loop.c modules/game_results.c modules/utils.c
@@ -128,6 +137,34 @@ test: all
 	done
 	@echo "All tests passed!"
 
+# Ensure logs directory exists
+$(VG_LOG_DIR):
+	mkdir -p $(VG_LOG_DIR)
+
+# Valgrind: Full run (master with view and players; children traced)
+valgrind-all: all | $(VG_LOG_DIR)
+	@echo "Running Valgrind: full run (with children)"
+	$(VALGRIND) $(VG_COMMON_OPTS) --trace-children=yes --log-file=$(VG_LOG_ALL) ./master -w 10 -h 10 -d 10 -t 5 -s 1 -v ./view -p ./player1 ./player2
+	@echo "Logs saved to $(VG_LOG_ALL)"
+
+# Valgrind: Do not trace children (only master process)
+valgrind-no-children: all | $(VG_LOG_DIR)
+	@echo "Running Valgrind: master only (no children)"
+	$(VALGRIND) $(VG_COMMON_OPTS) --trace-children=no --log-file=$(VG_LOG_NO_CHILDREN) ./master -w 10 -h 10 -d 10 -t 5 -s 1 -v ./view -p ./player1 ./player2
+	@echo "Logs saved to $(VG_LOG_NO_CHILDREN)"
+
+# Valgrind: Only include view (players omitted)
+valgrind-view-only: all | $(VG_LOG_DIR)
+	@echo "Running Valgrind: view only"
+	$(VALGRIND) $(VG_COMMON_OPTS) --trace-children=yes --log-file=$(VG_LOG_VIEW_ONLY) ./master -w 10 -h 10 -d 10 -t 5 -s 1 -v ./view -p ./testPlayer
+	@echo "Logs saved to $(VG_LOG_VIEW_ONLY)"
+
+# Valgrind: Only include players (no view)
+valgrind-players-only: all | $(VG_LOG_DIR)
+	@echo "Running Valgrind: players only (no view)"
+	$(VALGRIND) $(VG_COMMON_OPTS) --trace-children=yes --log-file=$(VG_LOG_PLAYERS_ONLY) ./master -w 10 -h 10 -d 10 -t 5 -s 1 -p ./player1 ./player2
+	@echo "Logs saved to $(VG_LOG_PLAYERS_ONLY)"
+
 # Show build information
 info:
 	@echo "ChompChamps Local Build System"
@@ -151,6 +188,10 @@ info:
 	@echo "  ipc          - Build IPC libraries only"
 	@echo "  modules      - Build modules only"
 	@echo "  test         - Test that all executables work"
+	@echo "  valgrind-all           - Run with view and players (trace children)"
+	@echo "  valgrind-no-children   - Run master only (no child tracing)"
+	@echo "  valgrind-view-only     - Run with view only (testPlayer as player)"
+	@echo "  valgrind-players-only  - Run with players only (no view)"
 	@echo "  clean        - Remove build artifacts"
 	@echo "  info         - Show this information"
 

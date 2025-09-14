@@ -100,20 +100,31 @@ int create_semaphore_shared_memory() {
 }
 
 void cleanup_memory(int width, int height) {
-  // Limpiar recursos (después de imprimir resultados)
-  munmap(game_state, sizeof(game) + (width * height * sizeof(int)));
-  // Destruir semáforos antes de liberar la memoria compartida
-  sem_destroy(&game_semaphores->A);
-  sem_destroy(&game_semaphores->B);
-  sem_destroy(&game_semaphores->C);
-  sem_destroy(&game_semaphores->D);
-  sem_destroy(&game_semaphores->E);
-  for (int i = 0; i < 9; i++) {
-    sem_destroy(&game_semaphores->G[i]);
+  // Destruir semáforos antes de liberar el segmento que los contiene
+  if (game_semaphores && game_semaphores != MAP_FAILED) {
+    sem_destroy(&game_semaphores->A);
+    sem_destroy(&game_semaphores->B);
+    sem_destroy(&game_semaphores->C);
+    sem_destroy(&game_semaphores->D);
+    sem_destroy(&game_semaphores->E);
+    for (int i = 0; i < 9; i++) {
+      sem_destroy(&game_semaphores->G[i]);
+    }
+    munmap(game_semaphores, sizeof(semaphore_struct));
   }
-  munmap(game_semaphores, sizeof(semaphore_struct));
-  close(game_shm_fd);
-  close(sem_shm_fd);
+
+  // Liberar memoria compartida del juego (no hay que liberar playerName: es un array fijo)
+  size_t game_size = sizeof(game) + (width * height * sizeof(int));
+  if (game_state && game_state != MAP_FAILED) {
+    munmap(game_state, game_size);
+  }
+
+  if (game_shm_fd >= 0)
+    close(game_shm_fd);
+  if (sem_shm_fd >= 0)
+    close(sem_shm_fd);
+
+  // Eliminar segmentos
   shm_unlink(SHM_STATE);
   shm_unlink(SHM_SEM);
 }

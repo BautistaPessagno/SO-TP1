@@ -20,3 +20,4 @@ src/PVS-Studio.log
 src/report.tasks
 src/strace_out
 src/strace_output.log
+/src/logs
