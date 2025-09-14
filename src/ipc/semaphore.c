@@ -63,12 +63,11 @@ int wait_for_turn(semaphore_struct *sem_state, int player_id) {
 }
 
 int acquire_read_access(semaphore_struct *sem_state) {
+  if (!sem_state)
+    return -1;
   // cumple un rol estilo molinete
   sem_wait(&sem_state->C);
   sem_post(&sem_state->C);
-  if (!sem_state)
-    return -1;
-
   if (sem_wait(&sem_state->E) == -1)
     return -1;
   sem_state->F++;
