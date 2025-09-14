@@ -72,12 +72,20 @@ int parse_arguments(int argc, char *argv[], int *width, int *height,
       }
       // Si no se proporciona una ruta, asumir que está en el directorio actual
       if (strchr(optarg, '/') == NULL) {
-        char *executable_with_path = malloc(strlen(optarg) + 3);
+        // Construir "./<nombre>" de forma segura
+        size_t name_len = strlen(optarg);
+        size_t total = name_len + 3; // "./" + nombre + NUL
+        char *executable_with_path = (char *)malloc(total);
         if (executable_with_path == NULL) {
           perror("malloc");
           return EXIT_FAILURE;
         }
-        sprintf(executable_with_path, "./%s", optarg);
+        int written = snprintf(executable_with_path, total, "./%s", optarg);
+        if (written < 0 || (size_t)written >= total) {
+          fprintf(stderr, "Error: ruta de jugador demasiado larga.\n");
+          free(executable_with_path);
+          return EXIT_FAILURE;
+        }
         player_executables[*num_players] = executable_with_path;
       } else {
         player_executables[*num_players] = optarg;
@@ -98,12 +106,20 @@ int parse_arguments(int argc, char *argv[], int *width, int *height,
     }
     // Si no se proporciona una ruta, asumir que está en el directorio actual
     if (strchr(argv[i], '/') == NULL) {
-      char *executable_with_path = malloc(strlen(argv[i]) + 3);
+      // Construir "./<nombre>" de forma segura
+      size_t name_len = strlen(argv[i]);
+      size_t total = name_len + 3; // "./" + nombre + NUL
+      char *executable_with_path = (char *)malloc(total);
       if (executable_with_path == NULL) {
         perror("malloc");
         return EXIT_FAILURE;
       }
-      sprintf(executable_with_path, "./%s", argv[i]);
+      int written = snprintf(executable_with_path, total, "./%s", argv[i]);
+      if (written < 0 || (size_t)written >= total) {
+        fprintf(stderr, "Error: ruta de jugador demasiado larga.\n");
+        free(executable_with_path);
+        return EXIT_FAILURE;
+      }
       player_executables[*num_players] = executable_with_path;
     } else {
       player_executables[*num_players] = argv[i];
