@@ -3,8 +3,8 @@
 
 # Compiler and flags
 CC := cc
-CFLAGS := -std=c99 -Wall -Wextra -O2 -I./include
-LDFLAGS := -pthread
+CFLAGS := -std=c99 -Wall -Wextra -pedantic -O2 -I./include
+LDFLAGS := -pthread -lm
 
 # Detect ncurses flags (prefer pkg-config). Fallback to -lncurses
 NCURSES_CFLAGS := $(shell pkg-config --cflags ncurses 2>/dev/null || pkg-config --cflags ncursesw 2>/dev/null)
@@ -39,7 +39,7 @@ VG_LOG_PLAYERS_ONLY := $(VG_LOG_DIR)/players_only.log
 # Source files
 IPC_SOURCES := ipc/shared_memory.c ipc/semaphore.c ipc/pipes.c
 MODULE_SOURCES := modules/config.c modules/memory.c modules/game_init.c modules/ipc_communication.c modules/game_logic.c modules/game_loop.c modules/game_results.c modules/utils.c
-MAIN_SOURCES := master.c view.c player1.c player2.c player_greedy.c player_random.c testPlayer.c
+MAIN_SOURCES := master.c view.c player1.c player2.c player_greedy.c player_random.c testPlayer.c player_cente.c cente_board.c cente_zobrist.c cente_influence.c cente_eval.c cente_mcts.c cente_autotune.c
 
 # Object files
 IPC_OBJECTS := $(IPC_SOURCES:.c=.o)
@@ -49,7 +49,7 @@ IPC_OBJ := $(addprefix $(OBJ_DIR)/, $(IPC_OBJECTS))
 MODULE_OBJ := $(addprefix $(OBJ_DIR)/, $(MODULE_OBJECTS))
 
 # Executables
-EXECUTABLES := master view player1 player2 player_greedy player_random testPlayer
+EXECUTABLES := master view player1 player2 player_greedy player_random testPlayer player_cente
 
 # Default target
 all: $(EXECUTABLES)
@@ -92,6 +92,10 @@ player_random: player_random.c $(IPC_OBJ)
 
 # Compile testPlayer
 testPlayer: testPlayer.c $(IPC_OBJ)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+
+# Compile player_cente and helper modules
+player_cente: player_cente.c cente_board.c cente_zobrist.c cente_influence.c cente_eval.c cente_mcts.c cente_autotune.c $(IPC_OBJ)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
 # Individual targets

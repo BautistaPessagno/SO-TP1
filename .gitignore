@@ -21,3 +21,5 @@ src/report.tasks
 src/strace_out
 src/strace_output.log
 /src/logs
+src/player_competitive
+src/player_cente
