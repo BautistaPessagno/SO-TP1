@@ -12,6 +12,11 @@ static void gaussian_kernel_1d(float sigma, float **out_kernel,
     radius = 1;
   int size = 2 * radius + 1;
   float *k = (float *)malloc((size_t)size * sizeof(float));
+  if (!k) {
+    *out_kernel = NULL;
+    *out_radius = 0;
+    return;
+  }
   float sum = 0.0f;
   float inv2s2 = 1.0f / (2.0f * sigma * sigma);
   for (int i = -radius, j = 0; i <= radius; i++, j++) {
@@ -145,6 +150,12 @@ void compute_influence_full(const Board *b, int self_id, float sigma,
   float *k;
   int r;
   gaussian_kernel_1d(sigma, &k, &r);
+  if (!k) {
+    free(src_you);
+    free(src_rival);
+    free(tmp);
+    return;
+  }
   convolve_separable(src_you, tmp, out->iyou, w, h, k, r);
   convolve_separable(src_rival, tmp, out->irival, w, h, k, r);
 

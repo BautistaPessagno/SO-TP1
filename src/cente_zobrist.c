@@ -30,6 +30,14 @@ void zobrist_init(int width, int height, int num_players) {
   size_t n = (size_t)width * (size_t)height;
   cell_keys = (uint64_t *)malloc(n * sizeof(uint64_t));
   head_keys = (uint64_t *)malloc((size_t)num_players * n * sizeof(uint64_t));
+  if (!cell_keys || !head_keys) {
+    free(cell_keys);
+    free(head_keys);
+    cell_keys = NULL;
+    head_keys = NULL;
+    g_w = g_h = g_p = 0;
+    return;
+  }
   uint64_t seed = 88172645463393265ULL;
   for (size_t i = 0; i < n; i++)
     cell_keys[i] = rng64(&seed);
@@ -41,6 +49,8 @@ void zobrist_init(int width, int height, int num_players) {
 uint64_t zobrist_hash_board(const Board *b) {
   size_t n = (size_t)b->width * (size_t)b->height;
   uint64_t h = 0;
+  if (!cell_keys || !head_keys)
+    return h;
   for (size_t i = 0; i < n; i++) {
     if (b->cells[i] <= 0)
       h ^= cell_keys[i];

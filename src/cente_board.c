@@ -108,11 +108,15 @@ uint64_t board_hash(const Board *b) {
   uint64_t prime = 1099511628211ULL;
   size_t n = (size_t)b->width * (size_t)b->height;
   for (size_t i = 0; i < n; i++) {
-    h ^= (uint64_t)(b->cells[i] * 1315423911u);
+    uint64_t mixed = ((uint64_t)(uint32_t)b->cells[i]) * 1315423911u;
+    h ^= mixed;
     h *= prime;
   }
   for (int p = 0; p < b->num_players; p++) {
-    h ^= (uint64_t)((b->head_x[p] << 16) ^ b->head_y[p] ^ (p << 24));
+    uint64_t head_mix = ((uint64_t)b->head_x[p] << 16) ^
+                        (uint64_t)b->head_y[p] ^
+                        ((uint64_t)(unsigned int)p << 24);
+    h ^= head_mix;
     h *= prime;
   }
   h ^= (uint64_t)b->current_player * 0x9e3779b97f4a7c15ULL;
