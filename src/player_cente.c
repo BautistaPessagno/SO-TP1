@@ -13,6 +13,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <unistd.h>
+#include <math.h>
 
 static int choose_cente_move(game *gs, semaphore_struct *sem_state,
                              int player_id) {
@@ -48,7 +49,7 @@ static int choose_cente_move(game *gs, semaphore_struct *sem_state,
   cente_size_params tuned;
   float tempo = cente_autotune(b, player_id, inf, ph, &base, &tuned);
   (void)tempo;
-  if (tuned.sigma != base.sigma) {
+  if (fabsf(tuned.sigma - base.sigma) > 1e-6f) {
     // Recompute influence with new sigma
     compute_influence_full(b, player_id, tuned.sigma, inf);
   }
@@ -146,8 +147,7 @@ int main(int argc, char *argv[]) {
   }
 
   close_semaphore_memory(sem_state);
-  size_t game_size =
-      sizeof(game) + (game_state->width * game_state->height * sizeof(int));
+  size_t game_size = sizeof(game) + (game_state->width * game_state->height * sizeof(int));
   close_shared_memory(game_state, game_size);
   return EXIT_SUCCESS;
 }
