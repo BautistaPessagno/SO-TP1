@@ -20,7 +20,8 @@ void run_game_loop(int num_players, pid_t view_pid) {
   int next_rr_index = 0;
   while (!game_state->ended) {
     // Habilitar un turno para cada jugador activo
-    for (int i = 0; i < num_players; i++) {
+    for (int k = 0; k < num_players; k++) {
+      int i = (next_rr_index + k) % num_players;
       if (game_state->players[i].blocked)
         continue;
       if (!has_valid_move(i)) {
@@ -34,7 +35,8 @@ void run_game_loop(int num_players, pid_t view_pid) {
 
     struct pollfd pfds[9];
     int nfds = 0;
-    for (int i = 0; i < num_players; i++) {
+    for (int k = 0; k < num_players; k++) {
+      int i = (next_rr_index + k) % num_players;
       pfds[i].fd = player_pipes[i][0];
       pfds[i].events = POLLIN;
       pfds[i].revents = 0;
