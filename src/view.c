@@ -6,16 +6,17 @@
 #include <fcntl.h>
 #include <ncurses.h>
 #include <semaphore.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <sys/mman.h>
 #include <unistd.h>
 
 // Prototipos de funciones
-void init_ncurses();
+SCREEN *init_ncurses();
 void init_colors();
 void draw_stats(WINDOW *win, game *game_state);
 void draw_board(WINDOW *win, game *game_state);
-void cleanup_ncurses();
+void cleanup_ncurses(SCREEN *screen);
 char playersChar[] = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'};
 
 int main(int argc, char *argv[]) {
@@ -58,7 +59,12 @@ int main(int argc, char *argv[]) {
   }
 
   // --- Inicialización de ncurses ---
-  init_ncurses();
+  SCREEN *screen = init_ncurses();
+  if (screen == NULL) {
+    close_semaphore_memory(game_semaphores);
+    munmap(game_state, game_size);
+    return EXIT_FAILURE;
+  }
   init_colors();
 
   int stats_height =
@@ -108,7 +114,7 @@ int main(int argc, char *argv[]) {
   // Destruir ventanas antes de finalizar ncurses para permitir que libncurses libere recursos asociados
   delwin(stats_win);
   delwin(board_win);
-  cleanup_ncurses();
+  cleanup_ncurses(screen);
   munmap(game_state, game_size);
   close_semaphore_memory(game_semaphores);
 
@@ -117,16 +123,21 @@ int main(int argc, char *argv[]) {
   return EXIT_SUCCESS;
 }
 
-void init_ncurses() {
+SCREEN *init_ncurses() {
   if (getenv("TERM") == NULL) {
     setenv("TERM", "xterm-256color", 1);
   }
-  initscr();
+  SCREEN *screen = newterm(NULL, stdout, stdin);
+  if (screen == NULL) {
+    return NULL;
+  }
+  set_term(screen);
   cbreak();
   noecho();
   curs_set(0);
   keypad(stdscr, TRUE);
   timeout(100); // No esperar por input
+  return screen;
 }
 
 void init_colors() {
@@ -227,4 +238,9 @@ void draw_board(WINDOW *win, game *game_state) {
   }
 }
 
-void cleanup_ncurses() { endwin(); }
+void cleanup_ncurses(SCREEN *screen) {
+  endwin();
+  if (screen != NULL) {
+    delscreen(screen);
+  }
+}
