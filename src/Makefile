@@ -52,7 +52,7 @@ MODULE_OBJ := $(addprefix $(OBJ_DIR)/, $(MODULE_OBJECTS))
 EXECUTABLES := master view player_cente
 
 # Default target
-all: $(EXECUTABLES)
+all: deps-auto $(EXECUTABLES)
 	@echo "All executables compiled successfully!"
 	@echo "Available executables:"
 	@ls -la $(EXECUTABLES)
@@ -161,6 +161,8 @@ info:
 	@echo "  master       - Build master executable"
 	@echo "  view         - Build view executable"
 	@echo "  player_cente - Build player_cente executable"
+	@echo "  run          - Run a sample game (10x10, 200ms, 3 players)"
+	@echo "  docker_cont  - Open interactive container with mounted project"
 	@echo "  ipc          - Build IPC libraries only"
 	@echo "  modules      - Build modules only"
 	@echo "  test         - Test that all executables work"
@@ -178,6 +180,31 @@ deps:
 	@pkg-config --exists ncurses && echo "✓ ncurses found" || echo "✗ ncurses not found"
 	@which make > /dev/null && echo "✓ make found: $$(which make)" || echo "✗ make not found"
 	@echo "Dependencies check complete!"
+
+# Auto-install dependencies when inside Debian-like containers (no-op elsewhere)
+.PHONY: deps-auto
+deps-auto:
+	@if command -v apt-get >/dev/null 2>&1; then \
+		echo "Ensuring build dependencies (ncurses, pkg-config, build-essential)..."; \
+		if dpkg -s libncurses-dev >/dev/null 2>&1; then \
+			echo "✓ libncurses-dev already installed"; \
+		else \
+			apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+				libncurses-dev ncurses-term pkg-config build-essential ca-certificates; \
+		fi; \
+	else \
+		echo "apt-get unavailable (non-Debian host). Skipping auto-install."; \
+	fi
+
+# Convenience: open course container with project mounted at /root
+.PHONY: docker_cont
+docker_cont:
+	docker run --rm -v "$$PWD:/root" --privileged -ti agodio/itba-so-multi-platform:3.0
+
+# Convenience: run a standard demo game
+.PHONY: run
+run: all
+	./master -w 10 -h 10 -d 200 -t 8 -v ./view -p ./player_cente ./player_cente ./player_cente
 
 # Debug target
 debug: CFLAGS += -g3 -O0 -DDEBUG
