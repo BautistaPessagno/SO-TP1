@@ -6,7 +6,7 @@
 set -e  # Exit on any error
 
 # Docker configuration
-DOCKER_IMAGE="agodio/itba-so:2.0"
+DOCKER_IMAGE="agodio/itba-so:3.0"
 
 # Colors for output
 RED='\033[0;31m'
@@ -41,9 +41,7 @@ show_usage() {
     echo "  build     - Build all components using Docker"
     echo "  master    - Build only master using Docker"
     echo "  view      - Build only view using Docker"
-    echo "  players   - Build only players using Docker"
-    echo "  player1   - Build only player1 (conservative) using Docker"
-    echo "  player2   - Build only player2 (aggressive) using Docker"
+    echo "  player_cente - Build only player_cente using Docker"
     echo "  clean     - Clean all build artifacts"
     echo "  test      - Run compilation tests inside Docker"
     echo "  deps      - Check dependencies"
@@ -121,7 +119,7 @@ run_build() {
         # Show what was built
         echo ""
         echo "Built executables:"
-        ls -la master view player1 player2 2>/dev/null | grep -v "cannot access" || true
+        ls -la master view player_cente 2>/dev/null | grep -v "cannot access" || true
         
     else
         print_error "Build failed!"
@@ -146,7 +144,7 @@ main() {
             print_status "Building using Docker..."
             run_build "docker-build"
             ;;
-        master|view|players|player1|player2|system)
+        master|view|player_cente|system)
             check_directory
             check_requirements
             print_status "Building $command using Docker..."

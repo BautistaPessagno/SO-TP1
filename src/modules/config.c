@@ -16,7 +16,7 @@ char *view_path = NULL; // ruta del binario de la vista
 void print_usage(const char *program_name) {
   fprintf(stderr,
           "Uso: %s [-w width] [-h height] [-d delay] [-t timeout] [-s seed] "
-          "[-v view] -p player1 [player2 ...]\n",
+          "[-v view] -p player_cente [player_cente ...]\n",
           program_name);
   fprintf(stderr,
           "  -w width    Ancho del tablero (mínimo 10, por defecto 10)\n");
@@ -33,7 +33,7 @@ void print_usage(const char *program_name) {
       "  -v view     Ruta del binario de la vista (por defecto sin vista)\n");
   fprintf(stderr, "  -p player   Ruta/s de los binarios de los jugadores "
                   "(mínimo 1, máximo 9)\n");
-  fprintf(stderr, "              Ejemplo: -p player1 player2 player3\n");
+  fprintf(stderr, "              Ejemplo: -p player_cente player_cente\n");
 }
 
 int parse_arguments(int argc, char *argv[], int *width, int *height,

@@ -73,7 +73,7 @@ pid_t create_player_process(const char *player_executable, int pipe_fd) {
     // Cerrar descriptor de escritura (ya duplicado)
     close(pipe_fd);
 
-    // Pasar ancho y alto como argumentos, alineado con testPlayer
+    // Pasar ancho y alto como argumentos (compatible con player_cente)
     char width_str[16], height_str[16];
     snprintf(width_str, sizeof(width_str), "%d", (int)game_state->width);
     snprintf(height_str, sizeof(height_str), "%d", (int)game_state->height);
