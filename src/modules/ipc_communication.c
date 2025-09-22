@@ -41,6 +41,10 @@ pid_t create_view_process(int width, int height) {
 
   if (view_pid == 0) {
     // Proceso hijo - ejecutar vista
+    for(int i = 0 ; i < 9 ; i++) {
+      close(player_pipes[i][1]);
+      close(player_pipes[i][0]);
+    }
     char width_str[16], height_str[16];
     snprintf(width_str, sizeof(width_str), "%d", width);
     snprintf(height_str, sizeof(height_str), "%d", height);
@@ -65,6 +69,15 @@ pid_t create_player_process(const char *player_executable, int pipe_fd) {
 
   if (player_pid == 0) {
     // Proceso hijo
+    // Cerrar todos los extremos de pipes que no se usen en este proceso
+    for (int i = 0; i < 9; i++) {
+      if (player_pipes[i][0] != pipe_fd) {
+        close(player_pipes[i][0]);
+      }
+      if (player_pipes[i][1] != pipe_fd) {
+        close(player_pipes[i][1]);
+      }
+    }
     // Redirigir stdout del jugador al extremo de escritura del pipe
     if (dup2(pipe_fd, STDOUT_FILENO) == -1) {
       perror("dup2 player stdout");
